@@ -1,0 +1,182 @@
+{
+  "copters": {
+    "team": "Twelves Copters",
+    "matches": [
+      {
+        "matchId": "05102026-0",
+        "date": "05/10/2026",
+        "time": "11:00 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division A",
+        "team1": "Twelves Copters",
+        "team2": "Oregon CC",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05172026-1",
+        "date": "05/17/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division A",
+        "team1": "Twelves Copters",
+        "team2": "WCC F-16",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05302026-2",
+        "date": "05/30/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division A",
+        "team1": "VS Sports Challengers",
+        "team2": "Twelves Copters",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      }
+    ],
+    "fetchedAt": "2026-05-08T21:46:19.980Z"
+  },
+  "drones": {
+    "team": "Twelves Drones",
+    "matches": [
+      {
+        "matchId": "05102026-0",
+        "date": "05/10/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division B",
+        "team1": "Punjab Kings",
+        "team2": "Twelves Drones",
+        "ground": "Forsgren Park",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05162026-1",
+        "date": "05/16/2026",
+        "time": "11:00 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division B",
+        "team1": "Twelves Drones",
+        "team2": "Bellingham Daredevils",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05312026-2",
+        "date": "05/31/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division B",
+        "team1": "Twelves Drones",
+        "team2": "Microsoft Crimsons",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      }
+    ],
+    "fetchedAt": "2026-05-08T21:46:27.544Z"
+  },
+  "jets": {
+    "team": "Twelves Jets",
+    "matches": [
+      {
+        "matchId": "05092026-0",
+        "date": "05/09/2026",
+        "time": "11:00 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division C",
+        "team1": "Twelves Jets",
+        "team2": "Spokane Spartans",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05162026-1",
+        "date": "05/16/2026",
+        "time": "11:00 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division C",
+        "team1": "WSU Cougars",
+        "team2": "Twelves Jets",
+        "ground": "Pullman",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05312026-2",
+        "date": "05/31/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division C",
+        "team1": "Southside Hawks",
+        "team2": "Twelves Jets",
+        "ground": "North Robinswood Park",
+        "result": null,
+        "scorecardUrl": null
+      }
+    ],
+    "fetchedAt": "2026-05-08T21:46:33.824Z"
+  },
+  "rockets": {
+    "team": "Twelves Rockets",
+    "matches": [
+      {
+        "matchId": "05102026-0",
+        "date": "05/10/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division D",
+        "team1": "Bellevue Chargers",
+        "team2": "Twelves Rockets",
+        "ground": "Kent Cricket Ground",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05172026-1",
+        "date": "05/17/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division D",
+        "team1": "Bellevue Smashers",
+        "team2": "Twelves Rockets",
+        "ground": "Forsgren Park",
+        "result": null,
+        "scorecardUrl": null
+      },
+      {
+        "matchId": "05032026-2",
+        "date": "05/03/2026",
+        "time": "10:30 AM",
+        "matchType": "League",
+        "series": "2026 40 overs Abdul latif & Mahesh Jayaraman Memorial Tournament",
+        "division": "Division D",
+        "team1": "Twelves Rockets",
+        "team2": "TotallyIn2Cricket Legends",
+        "ground": "McCollum Park",
+        "result": null,
+        "scorecardUrl": null
+      }
+    ],
+    "fetchedAt": "2026-05-08T21:46:44.301Z"
+  }
+}
