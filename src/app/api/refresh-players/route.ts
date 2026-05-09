@@ -64,7 +64,7 @@ export async function GET(request: Request) {
           continue;
         }
 
-        // Fetch individual player stats
+        // Fetch individual player stats from all leagues
         try {
           const statsUrl = `https://cricclubs.com/NWCL/viewPlayer.do?playerId=${playerId}&clubId=232`;
           const statsRes = await fetch(statsUrl, {
@@ -76,16 +76,20 @@ export async function GET(request: Request) {
           const statsHtml = await statsRes.text();
           const $s = cheerio.load(statsHtml);
 
-          let inNWCL = false;
+          // Collect raw stats from all leagues, then aggregate by format
+          const rawBatting: { seriesType: string; matches: number; innings: number; notOuts: number; runs: number; balls: number; highScore: string; hundreds: number; fifties: number; fours: number; sixes: number }[] = [];
+          const rawBowling: { seriesType: string; matches: number; innings: number; overs: string; runs: number; wickets: number; bestFigures: string; maidens: number; fourWickets: number; fiveWickets: number; catches: number }[] = [];
+
+          let inLeague = false;
           $s("h2.resp-accordion").each((_, accordion) => {
             const title = $s(accordion).text().trim();
             const titleUpper = title.toUpperCase();
 
             if (!titleUpper.includes("BATTING") && !titleUpper.includes("BOWLING")) {
-              inNWCL = titleUpper.includes("NORTHWEST CRICKET LEAGUE");
+              inLeague = true;
               return;
             }
-            if (!inNWCL) return;
+            if (!inLeague) return;
 
             const content = $s(accordion).next();
             const rows = content.find("table.table tbody tr");
@@ -100,26 +104,19 @@ export async function GET(request: Request) {
                 const seriesType = $s(cells[0]).find("b").text().trim();
                 if (!seriesType) return;
 
-                supabaseAdmin.from("batting_stats").upsert(
-                  {
-                    player_id: playerId,
-                    team_slug: team.slug,
-                    series_type: seriesType,
-                    matches: parseInt($s(cells[1]).text().trim() || "0"),
-                    innings: parseInt($s(cells[2]).text().trim() || "0"),
-                    not_outs: parseInt($s(cells[3]).text().trim() || "0"),
-                    runs: parseInt($s(cells[4]).text().trim() || "0"),
-                    balls: parseInt($s(cells[5]).text().trim() || "0"),
-                    average: $s(cells[6]).text().trim() || "0",
-                    strike_rate: $s(cells[7]).text().trim() || "0",
-                    high_score: $s(cells[8]).text().trim() || "0",
-                    hundreds: parseInt($s(cells[9]).text().trim() || "0"),
-                    fifties: parseInt($s(cells[10]).text().trim() || "0"),
-                    fours: parseInt($s(cells[13]).text().trim() || "0"),
-                    sixes: parseInt($s(cells[14]).text().trim() || "0"),
-                  },
-                  { onConflict: "player_id,team_slug,series_type" }
-                );
+                rawBatting.push({
+                  seriesType,
+                  matches: parseInt($s(cells[1]).text().trim() || "0"),
+                  innings: parseInt($s(cells[2]).text().trim() || "0"),
+                  notOuts: parseInt($s(cells[3]).text().trim() || "0"),
+                  runs: parseInt($s(cells[4]).text().trim() || "0"),
+                  balls: parseInt($s(cells[5]).text().trim() || "0"),
+                  highScore: $s(cells[8]).text().trim() || "0",
+                  hundreds: parseInt($s(cells[9]).text().trim() || "0"),
+                  fifties: parseInt($s(cells[10]).text().trim() || "0"),
+                  fours: parseInt($s(cells[13]).text().trim() || "0"),
+                  sixes: parseInt($s(cells[14]).text().trim() || "0"),
+                });
               });
             } else if (titleUpper.includes("BOWLING")) {
               rows.each((_, row) => {
@@ -131,30 +128,118 @@ export async function GET(request: Request) {
                 const seriesType = $s(cells[0]).find("b").text().trim();
                 if (!seriesType) return;
 
-                supabaseAdmin.from("bowling_stats").upsert(
-                  {
-                    player_id: playerId,
-                    team_slug: team.slug,
-                    series_type: seriesType,
-                    matches: parseInt($s(cells[1]).text().trim() || "0"),
-                    innings: parseInt($s(cells[2]).text().trim() || "0"),
-                    overs: $s(cells[3]).text().trim() || "0",
-                    runs: parseInt($s(cells[4]).text().trim() || "0"),
-                    wickets: parseInt($s(cells[5]).text().trim() || "0"),
-                    best_figures: $s(cells[6]).text().trim() || "-",
-                    maidens: parseInt($s(cells[7]).text().trim() || "0"),
-                    average: $s(cells[8]).text().trim() || "0",
-                    economy: $s(cells[9]).text().trim() || "0",
-                    strike_rate: $s(cells[10]).text().trim() || "0",
-                    four_wickets: parseInt($s(cells[11]).text().trim() || "0"),
-                    five_wickets: parseInt($s(cells[12]).text().trim() || "0"),
-                    catches: parseInt($s(cells[14]).text().trim() || "0"),
-                  },
-                  { onConflict: "player_id,team_slug,series_type" }
-                );
+                rawBowling.push({
+                  seriesType,
+                  matches: parseInt($s(cells[1]).text().trim() || "0"),
+                  innings: parseInt($s(cells[2]).text().trim() || "0"),
+                  overs: $s(cells[3]).text().trim() || "0",
+                  runs: parseInt($s(cells[4]).text().trim() || "0"),
+                  wickets: parseInt($s(cells[5]).text().trim() || "0"),
+                  bestFigures: $s(cells[6]).text().trim() || "-",
+                  maidens: parseInt($s(cells[7]).text().trim() || "0"),
+                  fourWickets: parseInt($s(cells[11]).text().trim() || "0"),
+                  fiveWickets: parseInt($s(cells[12]).text().trim() || "0"),
+                  catches: parseInt($s(cells[14]).text().trim() || "0"),
+                });
               });
             }
           });
+
+          // Aggregate batting by format
+          const battingByFormat = new Map<string, typeof rawBatting>();
+          for (const r of rawBatting) {
+            const existing = battingByFormat.get(r.seriesType) || [];
+            existing.push(r);
+            battingByFormat.set(r.seriesType, existing);
+          }
+          for (const [seriesType, stats] of battingByFormat) {
+            const matches = stats.reduce((s, r) => s + r.matches, 0);
+            const innings = stats.reduce((s, r) => s + r.innings, 0);
+            const notOuts = stats.reduce((s, r) => s + r.notOuts, 0);
+            const runs = stats.reduce((s, r) => s + r.runs, 0);
+            const balls = stats.reduce((s, r) => s + r.balls, 0);
+            const dismissals = innings - notOuts;
+            const average = dismissals > 0 ? (runs / dismissals).toFixed(2) : "0";
+            const strikeRate = balls > 0 ? ((runs / balls) * 100).toFixed(2) : "0";
+            const highScore = stats.reduce((best, r) => {
+              const curr = parseInt(r.highScore) || 0;
+              const prev = parseInt(best) || 0;
+              return curr > prev ? r.highScore : best;
+            }, "0");
+            await supabaseAdmin.from("batting_stats").upsert(
+              {
+                player_id: playerId,
+                team_slug: team.slug,
+                series_type: seriesType,
+                matches,
+                innings,
+                not_outs: notOuts,
+                runs,
+                balls,
+                average,
+                strike_rate: strikeRate,
+                high_score: highScore,
+                hundreds: stats.reduce((s, r) => s + r.hundreds, 0),
+                fifties: stats.reduce((s, r) => s + r.fifties, 0),
+                fours: stats.reduce((s, r) => s + r.fours, 0),
+                sixes: stats.reduce((s, r) => s + r.sixes, 0),
+              },
+              { onConflict: "player_id,team_slug,series_type" }
+            );
+          }
+
+          // Aggregate bowling by format
+          const bowlingByFormat = new Map<string, typeof rawBowling>();
+          for (const r of rawBowling) {
+            const existing = bowlingByFormat.get(r.seriesType) || [];
+            existing.push(r);
+            bowlingByFormat.set(r.seriesType, existing);
+          }
+          for (const [seriesType, stats] of bowlingByFormat) {
+            const matches = stats.reduce((s, r) => s + r.matches, 0);
+            const innings = stats.reduce((s, r) => s + r.innings, 0);
+            const totalBalls = stats.reduce((s, r) => {
+              const parts = String(r.overs).split(".");
+              const full = parseInt(parts[0]) || 0;
+              const partial = parseInt(parts[1]) || 0;
+              return s + full * 6 + partial;
+            }, 0);
+            const oversWhole = Math.floor(totalBalls / 6);
+            const oversPartial = totalBalls % 6;
+            const overs = oversPartial > 0 ? `${oversWhole}.${oversPartial}` : String(oversWhole);
+            const runs = stats.reduce((s, r) => s + r.runs, 0);
+            const wickets = stats.reduce((s, r) => s + r.wickets, 0);
+            const economy = totalBalls > 0 ? (runs / (totalBalls / 6)).toFixed(2) : "0";
+            const average = wickets > 0 ? (runs / wickets).toFixed(2) : "0";
+            const strikeRate = wickets > 0 ? (totalBalls / wickets).toFixed(2) : "0";
+            const bestFigures = stats.reduce((best, r) => {
+              if (best === "-") return r.bestFigures;
+              const [bw] = best.split("/").map(Number);
+              const [sw] = r.bestFigures.split("/").map(Number);
+              return (sw || 0) > (bw || 0) ? r.bestFigures : best;
+            }, "-");
+            await supabaseAdmin.from("bowling_stats").upsert(
+              {
+                player_id: playerId,
+                team_slug: team.slug,
+                series_type: seriesType,
+                matches,
+                innings,
+                overs,
+                runs,
+                wickets,
+                best_figures: bestFigures,
+                maidens: stats.reduce((s, r) => s + r.maidens, 0),
+                average,
+                economy,
+                strike_rate: strikeRate,
+                four_wickets: stats.reduce((s, r) => s + r.fourWickets, 0),
+                five_wickets: stats.reduce((s, r) => s + r.fiveWickets, 0),
+                catches: stats.reduce((s, r) => s + r.catches, 0),
+              },
+              { onConflict: "player_id,team_slug,series_type" }
+            );
+          }
         } catch {
           // Stats fetch failed for this player, continue
         }
