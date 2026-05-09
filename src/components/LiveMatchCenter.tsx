@@ -32,6 +32,8 @@ interface MatchCenterItem {
 export function LiveMatchCenter() {
   const [matches, setMatches] = useState<MatchCenterItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState("");
 
   useEffect(() => {
     fetchMatches();
@@ -48,6 +50,28 @@ export function LiveMatchCenter() {
       // silently fail
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function triggerRefresh() {
+    setRefreshing(true);
+    setRefreshMsg("");
+    try {
+      const res = await fetch("/api/trigger-refresh", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setRefreshMsg("Refresh triggered — updating in ~2 min");
+        setTimeout(() => {
+          fetchMatches();
+          setRefreshMsg("");
+        }, 120000);
+      } else {
+        setRefreshMsg(data.error || "Failed to trigger refresh");
+      }
+    } catch {
+      setRefreshMsg("Failed to trigger refresh");
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -78,6 +102,29 @@ export function LiveMatchCenter() {
 
   return (
     <div className="space-y-6">
+      {/* Refresh Button */}
+      <div className="flex items-center justify-end gap-3">
+        {refreshMsg && (
+          <span className="text-xs text-yellow-400">{refreshMsg}</span>
+        )}
+        <button
+          onClick={triggerRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 bg-[#1a1a1a] border border-[#333] rounded-lg hover:border-[#555] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg
+            className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {refreshing ? "Triggering..." : "Refresh Scores"}
+        </button>
+      </div>
+
       {/* Live Matches */}
       {liveMatches.length > 0 && (
         <div>
