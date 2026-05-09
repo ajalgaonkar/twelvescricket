@@ -121,7 +121,7 @@ async function fetchPlayerStats(page: puppeteer.Page, player: Player): Promise<P
       const batting: BattingStats[] = [];
       const bowling: BowlingStats[] = [];
 
-      // Find all accordion headings — scrape stats from ALL leagues
+      // Find all accordion headings — scrape stats from all leagues except ARCL
       const accordions = document.querySelectorAll("h2.resp-accordion");
       let inLeague = false;
 
@@ -131,8 +131,7 @@ async function fetchPlayerStats(page: puppeteer.Page, player: Player): Promise<P
 
         // League headings don't contain BATTING or BOWLING
         if (!titleUpper.includes("BATTING") && !titleUpper.includes("BOWLING")) {
-          // Any league heading means we're in a valid league section
-          inLeague = true;
+          inLeague = !titleUpper.includes("ARCL");
           continue;
         }
 

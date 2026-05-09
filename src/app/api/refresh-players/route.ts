@@ -86,7 +86,7 @@ export async function GET(request: Request) {
             const titleUpper = title.toUpperCase();
 
             if (!titleUpper.includes("BATTING") && !titleUpper.includes("BOWLING")) {
-              inLeague = true;
+              inLeague = !titleUpper.includes("ARCL");
               return;
             }
             if (!inLeague) return;
