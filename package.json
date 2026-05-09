@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "fetch-schedules": "tsx scripts/fetch-schedules.ts",
+    "fetch-live-scores": "tsx scripts/fetch-live-scores.ts",
     "seed-supabase": "tsx scripts/seed-supabase.ts"
   },
   "dependencies": {
