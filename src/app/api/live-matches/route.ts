@@ -326,9 +326,11 @@ export async function GET(request: Request) {
     }
 
     // Sort: live first, then upcoming, then completed
-    results.sort((a: any, b: any) => {
-      const order = { live: 0, upcoming: 1, completed: 2 };
-      return (order[a.status as keyof typeof order] || 2) - (order[b.status as keyof typeof order] || 2);
+    const statusOrder: Record<string, number> = { live: 0, upcoming: 1, completed: 2 };
+    results.sort((a, b) => {
+      const aOrder = statusOrder[a.status] ?? 2;
+      const bOrder = statusOrder[b.status] ?? 2;
+      return aOrder - bOrder;
     });
 
     return NextResponse.json({ matches: results.slice(0, 8) });

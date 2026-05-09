@@ -144,8 +144,14 @@ async function main() {
           links.push({ matchId: matchIdMatch[1], href });
         }
       }
-      // Only return the most recent 8 (highest match IDs = most recent)
-      return links.sort((a, b) => Number(b.matchId) - Number(a.matchId)).slice(0, 8);
+      // Deduplicate and return the most recent 8 (highest match IDs = most recent)
+      const seen = new Set<string>();
+      const unique = links.filter((l) => {
+        if (seen.has(l.matchId)) return false;
+        seen.add(l.matchId);
+        return true;
+      });
+      return unique.sort((a, b) => Number(b.matchId) - Number(a.matchId)).slice(0, 8);
     });
 
     console.log(`  Found ${allScorecardLinks.length} recent scorecard links`);
