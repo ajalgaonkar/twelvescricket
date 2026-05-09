@@ -11,13 +11,6 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-const teams = [
-  { slug: "copters", teamId: 1455, leagueId: 160, clubId: 232 },
-  { slug: "drones", teamId: 1470, leagueId: 161, clubId: 232 },
-  { slug: "jets", teamId: 1480, leagueId: 162, clubId: 232 },
-  { slug: "rockets", teamId: 1494, leagueId: 163, clubId: 232 },
-];
-
 const CLUB_ID = 232;
 const BASE_URL = "https://cricclubs.com";
 
@@ -135,8 +128,8 @@ async function main() {
 
   const scrapedMatchIds = new Set<string>();
 
-  // Strategy 1: Check club-level fixtures page for all scorecard links
-  console.log("Strategy 1: Checking club fixtures page...");
+  // Strategy 1: Check club-level fixtures page for recent scorecard links (last 8 only)
+  console.log("Strategy 1: Checking club fixtures page (most recent matches)...");
   try {
     const fixturesUrl = `${BASE_URL}/NWCL/listMatches.do?clubId=${CLUB_ID}`;
     await page.goto(fixturesUrl, { waitUntil: "networkidle2", timeout: 25000 });
@@ -151,10 +144,11 @@ async function main() {
           links.push({ matchId: matchIdMatch[1], href });
         }
       }
-      return links;
+      // Only return the most recent 8 (highest match IDs = most recent)
+      return links.sort((a, b) => Number(b.matchId) - Number(a.matchId)).slice(0, 8);
     });
 
-    console.log(`  Found ${allScorecardLinks.length} scorecard links on fixtures page`);
+    console.log(`  Found ${allScorecardLinks.length} recent scorecard links`);
 
     for (const link of allScorecardLinks) {
       const url = `${BASE_URL}${link.href}`;
@@ -162,7 +156,6 @@ async function main() {
 
       const liveData = await scrapeScorecard(page, url);
       if (liveData) {
-        // Determine which team this belongs to
         const teamSlug = determineTeamSlug(liveData.team1Name, liveData.team2Name);
         const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
         console.log(`    ${liveData.team1Name} ${liveData.team1Score} (${liveData.team1Overs}) vs ${liveData.team2Name} ${liveData.team2Score} (${liveData.team2Overs})`);
@@ -172,122 +165,10 @@ async function main() {
         scrapedMatchIds.add(link.matchId);
       }
 
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 1000));
     }
   } catch (err) {
     console.log(`  Fixtures page failed: ${(err as Error).message}`);
-  }
-
-  // Strategy 2: Check each team's schedule page
-  console.log("\nStrategy 2: Checking team schedule pages...");
-  for (const team of teams) {
-    const scheduleUrl = `${BASE_URL}/NWCL/teamSchedule.do?teamId=${team.teamId}&league=${team.leagueId}&clubId=${team.clubId}`;
-    console.log(`  Checking ${team.slug}...`);
-
-    try {
-      await page.goto(scheduleUrl, { waitUntil: "networkidle2", timeout: 25000 });
-
-      const matchLinks = await page.evaluate(() => {
-        const links: { matchId: string; href: string }[] = [];
-        const rows = document.querySelectorAll("#attTable tbody tr, #schedule-table1 tbody tr, table tbody tr");
-        for (const row of rows) {
-          const scorecardLink = row.querySelector('a[href*="viewScorecard"]');
-          if (scorecardLink) {
-            const href = scorecardLink.getAttribute("href") || "";
-            const matchIdMatch = href.match(/matchId=(\d+)/);
-            if (matchIdMatch) {
-              links.push({ matchId: matchIdMatch[1], href });
-            }
-          }
-        }
-        return links.slice(-3);
-      });
-
-      console.log(`    Found ${matchLinks.length} matches with scorecards`);
-
-      for (const ml of matchLinks) {
-        if (scrapedMatchIds.has(ml.matchId)) {
-          console.log(`    Skipping ${ml.matchId} (already scraped)`);
-          continue;
-        }
-
-        const url = `${BASE_URL}${ml.href}`;
-        console.log(`    Scraping match ${ml.matchId}...`);
-
-        const liveData = await scrapeScorecard(page, url);
-        if (liveData) {
-          const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
-          console.log(`      ${liveData.team1Name} ${liveData.team1Score} (${liveData.team1Overs}) vs ${liveData.team2Name} ${liveData.team2Score} (${liveData.team2Overs})`);
-          console.log(`      Status: ${statusLabel} - ${liveData.statusText}`);
-
-          await saveToDb(ml.matchId, team.slug, liveData);
-          scrapedMatchIds.add(ml.matchId);
-        }
-
-        await new Promise((r) => setTimeout(r, 1500));
-      }
-    } catch (err) {
-      console.log(`    Failed: ${(err as Error).message}`);
-    }
-
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-
-  // Strategy 3: Try today's matches from the DB directly
-  console.log("\nStrategy 3: Trying today's scheduled matches from DB...");
-  try {
-    const now = new Date();
-    const todayStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${now.getFullYear()}`;
-
-    const { data: todayMatches } = await supabase
-      .from("matches")
-      .select("*")
-      .eq("date", todayStr);
-
-    if (todayMatches && todayMatches.length > 0) {
-      console.log(`  Found ${todayMatches.length} matches scheduled for today (${todayStr})`);
-
-      for (const match of todayMatches) {
-        if (!match.match_id || scrapedMatchIds.has(match.match_id)) {
-          continue;
-        }
-
-        // Try to find the CricClubs match ID by checking the scorecard URL
-        // The DB match_id might be a date-based ID, so we need to try the schedule page
-        // But we can also try common match ID patterns
-        console.log(`  Match: ${match.team1} vs ${match.team2} (DB ID: ${match.match_id})`);
-      }
-    } else {
-      console.log(`  No matches found for today (${todayStr})`);
-    }
-  } catch (err) {
-    console.log(`  DB query failed: ${(err as Error).message}`);
-  }
-
-  // Strategy 4: Try known live scorecard URLs from recent range
-  // CricClubs match IDs are sequential; try a range around recently known IDs
-  console.log("\nStrategy 4: Probing recent match IDs...");
-  const knownRecentId = 5426; // Known match ID from current season
-  const probeRange = 5; // Check IDs around the known one
-
-  for (let id = knownRecentId - probeRange; id <= knownRecentId + probeRange; id++) {
-    if (scrapedMatchIds.has(String(id))) continue;
-
-    const url = `${BASE_URL}/NWCL/viewScorecard.do?matchId=${id}&clubId=${CLUB_ID}`;
-    console.log(`  Probing match ID ${id}...`);
-
-    const liveData = await scrapeScorecard(page, url);
-    if (liveData) {
-      const teamSlug = determineTeamSlug(liveData.team1Name, liveData.team2Name);
-      const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
-      console.log(`    ${liveData.team1Name} ${liveData.team1Score} (${liveData.team1Overs}) vs ${liveData.team2Name} ${liveData.team2Score} (${liveData.team2Overs})`);
-      console.log(`    Status: ${statusLabel} - ${liveData.statusText}`);
-
-      await saveToDb(String(id), teamSlug, liveData);
-      scrapedMatchIds.add(String(id));
-    }
-
-    await new Promise((r) => setTimeout(r, 1500));
   }
 
   await browser.close();
