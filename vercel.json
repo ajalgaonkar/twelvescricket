@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/live-matches?refresh=true",
+      "schedule": "*/5 * * * 6"
+    },
+    {
       "path": "/api/refresh-schedules",
       "schedule": "0 6 * * *"
     },
