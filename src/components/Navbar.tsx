@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useState } from "react";
 import { teams } from "@/lib/teams";
 
@@ -12,11 +11,10 @@ export function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[rgba(22,22,22,0.9)] backdrop-blur-sm">
       <div className="max-w-[1280px] mx-auto px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center">
-          <Image
-            src="/logo.png"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/twelvescricket/logo.png"
             alt="Twelves Cricket Club"
-            width={50}
-            height={50}
             className="h-10 w-auto"
           />
         </Link>

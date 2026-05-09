@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { teams } from "@/lib/teams";
 import { getAllSchedules } from "@/lib/schedule";
@@ -12,12 +11,11 @@ export default function Home() {
       {/* Hero Section - full viewport height with background image */}
       <section className="relative min-h-screen flex items-center justify-center">
         <div className="absolute inset-0">
-          <Image
-            src="/hero.jpg"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/twelvescricket/hero.jpg"
             alt="Twelves Cricket Club"
-            fill
-            className="object-cover"
-            priority
+            className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/40" />
         </div>
