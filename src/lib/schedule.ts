@@ -1,5 +1,5 @@
+import { supabase } from "./supabase";
 import { Team } from "./teams";
-import schedulesData from "@/data/schedules.json";
 
 export interface Match {
   matchId: string;
@@ -15,29 +15,37 @@ export interface Match {
   scorecardUrl: string | null;
 }
 
-interface ScheduleEntry {
-  team: string;
-  matches: Match[];
-  fetchedAt: string;
+export async function getTeamSchedule(team: Team): Promise<Match[]> {
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("team_slug", team.slug)
+    .order("date", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((m) => ({
+    matchId: m.match_id,
+    date: m.date,
+    time: m.time,
+    matchType: m.match_type,
+    series: m.series,
+    division: m.division,
+    team1: m.team1,
+    team2: m.team2,
+    ground: m.ground,
+    result: m.result,
+    scorecardUrl: m.scorecard_url,
+  }));
 }
 
-const schedules = schedulesData as Record<string, ScheduleEntry>;
-
-export function getTeamSchedule(team: Team): Match[] {
-  const entry = schedules[team.slug];
-  if (!entry) return [];
-  return entry.matches;
-}
-
-export function getScheduleFetchedAt(team: Team): string | null {
-  const entry = schedules[team.slug];
-  return entry?.fetchedAt || null;
-}
-
-export function getAllSchedules(teams: Team[]): Map<string, Match[]> {
-  const result = new Map<string, Match[]>();
+export async function getAllSchedules(
+  teams: Team[]
+): Promise<Map<string, Match[]>> {
+  const map = new Map<string, Match[]>();
   for (const team of teams) {
-    result.set(team.slug, getTeamSchedule(team));
+    const matches = await getTeamSchedule(team);
+    map.set(team.slug, matches);
   }
-  return result;
+  return map;
 }

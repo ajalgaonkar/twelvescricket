@@ -33,8 +33,8 @@ export default async function TeamPage({
   const team = getTeamBySlug(slug);
   if (!team) notFound();
 
-  const matches = getTeamSchedule(team);
-  const players = getTeamPlayers(team.slug);
+  const matches = await getTeamSchedule(team);
+  const players = await getTeamPlayers(team.slug);
   const otherTeams = teams.filter((t) => t.slug !== team.slug);
 
   const captain = players.find((p) => p.position === "C");

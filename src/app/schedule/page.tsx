@@ -9,8 +9,8 @@ export const metadata = {
     "Full match schedule and results for all Twelves Cricket Club teams in the NWCL.",
 };
 
-export default function SchedulePage() {
-  const schedules = getAllSchedules(teams);
+export default async function SchedulePage() {
+  const schedules = await getAllSchedules(teams);
 
   return (
     <div className="pt-16">

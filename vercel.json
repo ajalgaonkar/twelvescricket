@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/refresh-schedules",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/refresh-players",
+      "schedule": "0 7 * * 1"
+    }
+  ]
+}

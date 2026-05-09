@@ -3,8 +3,8 @@ import { teams } from "@/lib/teams";
 import { getAllSchedules } from "@/lib/schedule";
 import { MatchCard } from "@/components/MatchCard";
 
-export default function Home() {
-  const schedules = getAllSchedules(teams);
+export default async function Home() {
+  const schedules = await getAllSchedules(teams);
 
   return (
     <div>
@@ -13,7 +13,7 @@ export default function Home() {
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/twelvescricket/hero.jpg"
+            src="/hero.jpg"
             alt="Twelves Cricket Club"
             className="absolute inset-0 w-full h-full object-cover"
           />

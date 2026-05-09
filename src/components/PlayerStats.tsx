@@ -11,13 +11,19 @@ interface PlayerStatsProps {
 export function PlayerStats({ players, teamColor }: PlayerStatsProps) {
   const [view, setView] = useState<"batting" | "bowling">("batting");
 
+  const getBatting = (p: Player) =>
+    p.batting.find((b) => b.seriesType === "1 DAY") || null;
+
+  const getBowling = (p: Player) =>
+    p.bowling.find((b) => b.seriesType === "1 DAY") || null;
+
   const sortedBatting = [...players]
-    .filter((p) => p.batting.length > 0 && p.batting[0].runs > 0)
-    .sort((a, b) => b.batting[0].runs - a.batting[0].runs);
+    .filter((p) => { const b = getBatting(p); return b && b.runs > 0; })
+    .sort((a, b) => (getBatting(b)!.runs) - (getBatting(a)!.runs));
 
   const sortedBowling = [...players]
-    .filter((p) => p.bowling.length > 0 && p.bowling[0].wickets > 0)
-    .sort((a, b) => b.bowling[0].wickets - a.bowling[0].wickets);
+    .filter((p) => { const b = getBowling(p); return b && b.wickets > 0; })
+    .sort((a, b) => (getBowling(b)!.wickets) - (getBowling(a)!.wickets));
 
   const topBatter = sortedBatting[0];
   const topBowler = sortedBowling[0];
@@ -92,26 +98,32 @@ export function PlayerStats({ players, teamColor }: PlayerStatsProps) {
 
               {/* Stat Boxes */}
               <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-0 border border-white/20 rounded-lg overflow-hidden w-fit mx-auto md:mx-0">
-                {view === "batting" && hero.batting[0] && (
-                  <>
-                    <StatBox label="Runs" value={String(hero.batting[0].runs)} />
-                    <StatBox label="Matches" value={String(hero.batting[0].matches)} />
-                    <StatBox label="Average" value={hero.batting[0].average} />
-                    <StatBox label="SR" value={hero.batting[0].strikeRate} />
-                    <StatBox label="HS" value={hero.batting[0].highScore} />
-                    <StatBox label="50s" value={String(hero.batting[0].fifties)} last />
-                  </>
-                )}
-                {view === "bowling" && hero.bowling[0] && (
-                  <>
-                    <StatBox label="Wickets" value={String(hero.bowling[0].wickets)} />
-                    <StatBox label="Matches" value={String(hero.bowling[0].matches)} />
-                    <StatBox label="Economy" value={hero.bowling[0].economy} />
-                    <StatBox label="Best" value={hero.bowling[0].bestFigures} />
-                    <StatBox label="Overs" value={hero.bowling[0].overs} />
-                    <StatBox label="SR" value={hero.bowling[0].strikeRate} last />
-                  </>
-                )}
+                {view === "batting" && getBatting(hero) && (() => {
+                  const s = getBatting(hero)!;
+                  return (
+                    <>
+                      <StatBox label="Runs" value={String(s.runs)} />
+                      <StatBox label="Matches" value={String(s.matches)} />
+                      <StatBox label="Average" value={s.average} />
+                      <StatBox label="SR" value={s.strikeRate} />
+                      <StatBox label="HS" value={s.highScore} />
+                      <StatBox label="50s" value={String(s.fifties)} last />
+                    </>
+                  );
+                })()}
+                {view === "bowling" && getBowling(hero) && (() => {
+                  const s = getBowling(hero)!;
+                  return (
+                    <>
+                      <StatBox label="Wickets" value={String(s.wickets)} />
+                      <StatBox label="Matches" value={String(s.matches)} />
+                      <StatBox label="Economy" value={s.economy} />
+                      <StatBox label="Best" value={s.bestFigures} />
+                      <StatBox label="Overs" value={s.overs} />
+                      <StatBox label="SR" value={s.strikeRate} last />
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -231,68 +243,76 @@ export function PlayerStats({ players, teamColor }: PlayerStatsProps) {
                         )}
                       </div>
                     </td>
-                    {view === "batting" && player.batting[0] && (
-                      <>
-                        <td className="px-3 py-2 text-center font-bold text-black bg-black/5">
-                          {player.batting[0].runs}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].matches}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].innings}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].average}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].strikeRate}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].highScore}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].fifties}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].fours}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.batting[0].sixes}
-                        </td>
-                      </>
-                    )}
-                    {view === "bowling" && player.bowling[0] && (
-                      <>
-                        <td className="px-3 py-2 text-center font-bold text-black bg-black/5">
-                          {player.bowling[0].wickets}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].matches}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].innings}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].overs}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].economy}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].bestFigures}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].average}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].strikeRate}
-                        </td>
-                        <td className="px-3 py-2 text-center text-black/70">
-                          {player.bowling[0].catches}
-                        </td>
-                      </>
-                    )}
+                    {view === "batting" && (() => {
+                      const s = getBatting(player);
+                      if (!s) return null;
+                      return (
+                        <>
+                          <td className="px-3 py-2 text-center font-bold text-black bg-black/5">
+                            {s.runs}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.matches}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.innings}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.average}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.strikeRate}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.highScore}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.fifties}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.fours}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.sixes}
+                          </td>
+                        </>
+                      );
+                    })()}
+                    {view === "bowling" && (() => {
+                      const s = getBowling(player);
+                      if (!s) return null;
+                      return (
+                        <>
+                          <td className="px-3 py-2 text-center font-bold text-black bg-black/5">
+                            {s.wickets}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.matches}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.innings}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.overs}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.economy}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.bestFigures}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.average}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.strikeRate}
+                          </td>
+                          <td className="px-3 py-2 text-center text-black/70">
+                            {s.catches}
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>

@@ -121,16 +121,29 @@ async function fetchPlayerStats(page: puppeteer.Page, player: Player): Promise<P
       const batting: BattingStats[] = [];
       const bowling: BowlingStats[] = [];
 
-      // Find all accordion headings and their content
+      // Find all accordion headings — scrape stats from ALL leagues
       const accordions = document.querySelectorAll("h2.resp-accordion");
+      let inLeague = false;
+
       for (const accordion of accordions) {
-        const title = accordion.textContent?.trim().toUpperCase() || "";
+        const title = accordion.textContent?.trim() || "";
+        const titleUpper = title.toUpperCase();
+
+        // League headings don't contain BATTING or BOWLING
+        if (!titleUpper.includes("BATTING") && !titleUpper.includes("BOWLING")) {
+          // Any league heading means we're in a valid league section
+          inLeague = true;
+          continue;
+        }
+
+        if (!inLeague) continue;
+
         const content = accordion.nextElementSibling;
         if (!content) continue;
 
         const rows = content.querySelectorAll("table.table tbody tr");
 
-        if (title.includes("BATTING")) {
+        if (titleUpper.includes("BATTING")) {
           for (const row of rows) {
             const cells = row.querySelectorAll("th");
             if (cells.length < 10) continue;
@@ -156,7 +169,7 @@ async function fetchPlayerStats(page: puppeteer.Page, player: Player): Promise<P
               sixes: parseInt(cells[14]?.textContent?.trim() || "0"),
             });
           }
-        } else if (title.includes("BOWLING")) {
+        } else if (titleUpper.includes("BOWLING")) {
           for (const row of rows) {
             const cells = row.querySelectorAll("th");
             if (cells.length < 10) continue;

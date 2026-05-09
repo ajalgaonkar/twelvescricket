@@ -13,7 +13,7 @@ export function Navbar() {
         <Link href="/" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/twelvescricket/logo.png"
+            src="/logo.png"
             alt="Twelves Cricket Club"
             className="h-10 w-auto"
           />
@@ -26,6 +26,7 @@ export function Navbar() {
           <NavLink href="/teams/drones">Drones</NavLink>
           <NavLink href="/teams/jets">Jets</NavLink>
           <NavLink href="/teams/rockets">Rockets</NavLink>
+          <NavLink href="/players">Players</NavLink>
           <NavLink href="/schedule">Schedule</NavLink>
         </div>
 
@@ -57,6 +58,7 @@ export function Navbar() {
                 {team.name}
               </MobileNavLink>
             ))}
+            <MobileNavLink href="/players" onClick={() => setMobileOpen(false)}>All Players</MobileNavLink>
             <MobileNavLink href="/schedule" onClick={() => setMobileOpen(false)}>Schedule</MobileNavLink>
           </div>
         </div>
