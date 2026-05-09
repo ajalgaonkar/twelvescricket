@@ -2,6 +2,7 @@ import Link from "next/link";
 import { teams } from "@/lib/teams";
 import { getAllSchedules } from "@/lib/schedule";
 import { MatchCard } from "@/components/MatchCard";
+import { LiveMatchCenter } from "@/components/LiveMatchCenter";
 
 export default async function Home() {
   const schedules = await getAllSchedules(teams);
@@ -18,6 +19,25 @@ export default async function Home() {
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/40" />
+        </div>
+      </section>
+
+      {/* Live & Recent Matches */}
+      <section className="bg-[#0a0a0a] py-14 px-6 border-b border-[#222]">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="text-center mb-10">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <h2 className="text-3xl sm:text-4xl md:text-[44px] font-bold text-white font-[family-name:var(--font-heading)]">
+                Match Center
+              </h2>
+            </div>
+            <hr className="w-[50px] border-t-2 border-[#888] mx-auto mt-4" />
+            <p className="text-[#888] mt-3 text-sm">
+              Live scores and recent results
+            </p>
+          </div>
+          <LiveMatchCenter />
         </div>
       </section>
 

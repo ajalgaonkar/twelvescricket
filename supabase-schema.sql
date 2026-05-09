@@ -90,11 +90,30 @@ CREATE TABLE matches (
   UNIQUE(team_slug, match_id)
 );
 
+-- Live scores table (refreshed by scraper during match days)
+CREATE TABLE live_scores (
+  id SERIAL PRIMARY KEY,
+  match_id TEXT UNIQUE NOT NULL,
+  team_slug TEXT NOT NULL,
+  team1_name TEXT,
+  team1_score TEXT,
+  team1_overs TEXT,
+  team2_name TEXT,
+  team2_score TEXT,
+  team2_overs TEXT,
+  status_text TEXT,
+  is_live BOOLEAN DEFAULT false,
+  batting_now JSONB DEFAULT '[]',
+  bowling_now JSONB DEFAULT '[]',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX idx_players_team ON players(team_slug);
 CREATE INDEX idx_batting_player ON batting_stats(player_id, team_slug);
 CREATE INDEX idx_bowling_player ON bowling_stats(player_id, team_slug);
 CREATE INDEX idx_matches_team ON matches(team_slug);
+CREATE INDEX idx_live_scores_match ON live_scores(match_id);
 
 -- Row Level Security
 ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
@@ -102,6 +121,7 @@ ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batting_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bowling_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE live_scores ENABLE ROW LEVEL SECURITY;
 
 -- Public read access policies
 CREATE POLICY "Public read access" ON teams FOR SELECT USING (true);
@@ -109,3 +129,4 @@ CREATE POLICY "Public read access" ON players FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON batting_stats FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON bowling_stats FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON matches FOR SELECT USING (true);
+CREATE POLICY "Public read access" ON live_scores FOR SELECT USING (true);
