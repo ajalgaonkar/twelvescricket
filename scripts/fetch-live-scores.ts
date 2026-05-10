@@ -163,6 +163,10 @@ async function main() {
       const liveData = await scrapeScorecard(page, url);
       if (liveData) {
         const teamSlug = determineTeamSlug(liveData.team1Name, liveData.team2Name);
+        if (!teamSlug) {
+          console.log(`    Skipping (not a Twelves team match): ${liveData.team1Name} vs ${liveData.team2Name}`);
+          continue;
+        }
         const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
         console.log(`    ${liveData.team1Name} ${liveData.team1Score} (${liveData.team1Overs}) vs ${liveData.team2Name} ${liveData.team2Score} (${liveData.team2Overs})`);
         console.log(`    Status: ${statusLabel} - ${liveData.statusText}`);
@@ -181,13 +185,13 @@ async function main() {
   console.log(`\nDone. Scraped ${scrapedMatchIds.size} matches total.`);
 }
 
-function determineTeamSlug(team1Name: string, team2Name: string): string {
+function determineTeamSlug(team1Name: string, team2Name: string): string | null {
   const combined = (team1Name + " " + team2Name).toLowerCase();
   if (combined.includes("copter")) return "copters";
   if (combined.includes("drone")) return "drones";
   if (combined.includes("jet")) return "jets";
   if (combined.includes("rocket")) return "rockets";
-  return "unknown";
+  return null;
 }
 
 async function saveToDb(matchId: string, teamSlug: string, liveData: any) {

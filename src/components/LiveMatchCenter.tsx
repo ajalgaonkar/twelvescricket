@@ -55,22 +55,33 @@ export function LiveMatchCenter() {
 
   async function triggerRefresh() {
     setRefreshing(true);
-    setRefreshMsg("");
+    setRefreshMsg("Scraping live scores...");
     try {
       const res = await fetch("/api/trigger-refresh", { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        setRefreshMsg("Refresh triggered — updating in ~2 min");
+        setRefreshMsg("Scraper running — polling for updates...");
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts++;
+          await fetchMatches();
+          if (attempts >= 15) {
+            clearInterval(poll);
+            setRefreshMsg("");
+            setRefreshing(false);
+          }
+        }, 10000);
         setTimeout(() => {
-          fetchMatches();
+          clearInterval(poll);
           setRefreshMsg("");
-        }, 120000);
+          setRefreshing(false);
+        }, 150000);
       } else {
         setRefreshMsg(data.error || "Failed to trigger refresh");
+        setRefreshing(false);
       }
     } catch {
       setRefreshMsg("Failed to trigger refresh");
-    } finally {
       setRefreshing(false);
     }
   }
