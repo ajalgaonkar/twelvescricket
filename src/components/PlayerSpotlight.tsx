@@ -48,6 +48,7 @@ export function PlayerSpotlight() {
   const [topBowlers, setTopBowlers] = useState<BowlerPerf[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [showBatting, setShowBatting] = useState(true);
+  const [paused, setPaused] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,10 +67,20 @@ export function PlayerSpotlight() {
   }, [showBatting, topBatters, topBowlers]);
 
   useEffect(() => {
-    if (currentList.length <= 1) return;
-    const interval = setInterval(rotate, 4000);
+    if (currentList.length <= 1 || paused) return;
+    const interval = setInterval(rotate, 7000);
     return () => clearInterval(interval);
-  }, [currentList.length, rotate]);
+  }, [currentList.length, rotate, paused]);
+
+  function goNext() {
+    if (currentList.length === 0) return;
+    setActiveIndex((prev) => (prev + 1) % currentList.length);
+  }
+
+  function goPrev() {
+    if (currentList.length === 0) return;
+    setActiveIndex((prev) => (prev - 1 + currentList.length) % currentList.length);
+  }
 
   async function fetchPerformers() {
     try {
@@ -207,41 +218,84 @@ export function PlayerSpotlight() {
         </button>
       </div>
 
-      {/* Spotlight Card */}
-      <div className="relative overflow-hidden">
-        <div className="flex transition-transform duration-500 ease-in-out"
-          style={{ transform: `translateX(-${activeIndex * 100}%)` }}
-        >
-          {currentList.map((player, idx) => (
-            <div key={`${player.name}-${idx}`} className="w-full shrink-0 px-1">
-              {showBatting ? (
-                <BatterCard
-                  player={player as BatterPerf}
-                  onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
-                />
-              ) : (
-                <BowlerCard
-                  player={player as BowlerPerf}
-                  onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
-                />
-              )}
-            </div>
-          ))}
+      {/* Spotlight Card with navigation */}
+      <div className="relative">
+        {/* Prev/Next arrows */}
+        {currentList.length > 1 && (
+          <>
+            <button
+              onClick={goPrev}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/80 transition-colors"
+              aria-label="Previous"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <button
+              onClick={goNext}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/80 transition-colors"
+              aria-label="Next"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          </>
+        )}
+
+        <div className="overflow-hidden mx-8">
+          <div className="flex transition-transform duration-500 ease-in-out"
+            style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+          >
+            {currentList.map((player, idx) => (
+              <div key={`${player.name}-${idx}`} className="w-full shrink-0 px-1">
+                {showBatting ? (
+                  <BatterCard
+                    player={player as BatterPerf}
+                    onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
+                  />
+                ) : (
+                  <BowlerCard
+                    player={player as BowlerPerf}
+                    onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Dots */}
+      {/* Dots + Pause */}
       {currentList.length > 1 && (
-        <div className="flex items-center justify-center gap-1.5">
-          {currentList.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setActiveIndex(idx)}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                idx === activeIndex ? "bg-white" : "bg-white/20"
-              }`}
-            />
-          ))}
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {currentList.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveIndex(idx)}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  idx === activeIndex ? "bg-white" : "bg-white/20"
+                }`}
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => setPaused(!paused)}
+            className="ml-2 w-5 h-5 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+            aria-label={paused ? "Play" : "Pause"}
+          >
+            {paused ? (
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+              </svg>
+            )}
+          </button>
         </div>
       )}
     </div>
