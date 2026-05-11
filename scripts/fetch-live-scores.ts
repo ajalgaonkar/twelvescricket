@@ -84,120 +84,112 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         status.includes("no result");
 
       // Extract ALL batting and bowling performances from the full scorecard
-      result.battingNow = [];
-      result.bowlingNow = [];
       result.allBatting = [];
       result.allBowling = [];
 
       const tables = document.querySelectorAll("table");
-      const batHeaders = ["batter", "batsman", "batting"];
-      const bowlHeaders = ["bowler", "bowling"];
+      const skipNames = ["batter", "batsman", "batting", "extras", "total", "did not bat", "fall of wickets"];
+      const bowlSkipNames = ["bowler", "bowling"];
 
       for (const table of tables) {
-        const headers = table.querySelectorAll("th");
-        const firstHeader = headers[0]?.textContent?.trim().toLowerCase() || "";
-        // Also check thead for the header pattern
-        const allHeaderText = Array.from(headers).map(h => h.textContent?.trim().toLowerCase() || "").join(" ");
+        const headerCells = Array.from(table.querySelectorAll("th"));
+        const headerTexts = headerCells.map(h => h.textContent?.trim().toLowerCase() || "");
+        const allHeaderText = headerTexts.join(" ");
 
-        const isBatTable = batHeaders.some(h => firstHeader === h) ||
-          (allHeaderText.includes("runs") && allHeaderText.includes("balls") && allHeaderText.includes("4s"));
-        const isBowlTable = bowlHeaders.some(h => firstHeader === h) ||
-          (allHeaderText.includes("overs") && allHeaderText.includes("wickets") && allHeaderText.includes("econ"));
+        // Detect batting table: look for "r" or "runs" column header combined with "b" or "balls"
+        const isBatTable =
+          (allHeaderText.includes("runs") || headerTexts.includes("r")) &&
+          (allHeaderText.includes("balls") || headerTexts.includes("b")) &&
+          (allHeaderText.includes("4s") || allHeaderText.includes("fours"));
+
+        // Detect bowling table
+        const isBowlTable =
+          (allHeaderText.includes("overs") || headerTexts.includes("o")) &&
+          (allHeaderText.includes("wickets") || headerTexts.includes("w") || allHeaderText.includes("wkts")) &&
+          (allHeaderText.includes("econ") || allHeaderText.includes("economy"));
 
         if (isBatTable) {
-          const rows = table.querySelectorAll("tbody tr, tr");
+          // Determine column layout by finding the "Runs/R" header index
+          let runsColIdx = headerTexts.indexOf("runs");
+          if (runsColIdx === -1) runsColIdx = headerTexts.indexOf("r");
+          // If we still can't find it, try position-based detection
+          // CricClubs completed scorecards: Name | How Out | R | B | 4s | 6s | SR (7 cols)
+          // CricClubs live scorecards: Batter | R | B | 4s | 6s | SR (6 cols)
+
+          const rows = table.querySelectorAll("tbody tr, tr:not(:first-child)");
           for (const row of rows) {
             const cells = row.querySelectorAll("td");
-            if (cells.length >= 6) {
-              const name = cells[0]?.textContent?.trim();
-              const headerCheck = name?.toLowerCase() || "";
-              if (name && !batHeaders.includes(headerCheck) && !headerCheck.includes("extras") && !headerCheck.includes("total") && !headerCheck.includes("did not bat")) {
-                const entry = {
-                  name,
-                  runs: cells[1]?.textContent?.trim() || "0",
-                  balls: cells[2]?.textContent?.trim() || "0",
-                  fours: cells[3]?.textContent?.trim() || "0",
-                  sixes: cells[4]?.textContent?.trim() || "0",
-                  sr: cells[5]?.textContent?.trim() || "0",
-                };
-                // Skip if runs is not a number (header row)
-                if (!isNaN(parseInt(entry.runs))) {
-                  result.allBatting.push(entry);
-                }
-              }
+            if (cells.length < 6) continue;
+
+            const name = cells[0]?.textContent?.trim() || "";
+            const nameLower = name.toLowerCase();
+            if (!name || skipNames.some(s => nameLower.includes(s))) continue;
+
+            let runs: string, balls: string, fours: string, sixes: string, sr: string;
+
+            if (cells.length >= 7 && runsColIdx >= 2) {
+              // Full scorecard layout: Name | How Out | R | B | 4s | 6s | SR
+              runs = cells[runsColIdx]?.textContent?.trim() || "0";
+              balls = cells[runsColIdx + 1]?.textContent?.trim() || "0";
+              fours = cells[runsColIdx + 2]?.textContent?.trim() || "0";
+              sixes = cells[runsColIdx + 3]?.textContent?.trim() || "0";
+              sr = cells[runsColIdx + 4]?.textContent?.trim() || "0";
+            } else if (cells.length >= 7) {
+              // 7+ columns but runs header not found: assume col 2 is runs
+              runs = cells[2]?.textContent?.trim() || "0";
+              balls = cells[3]?.textContent?.trim() || "0";
+              fours = cells[4]?.textContent?.trim() || "0";
+              sixes = cells[5]?.textContent?.trim() || "0";
+              sr = cells[6]?.textContent?.trim() || "0";
+            } else {
+              // 6 columns: Name | R | B | 4s | 6s | SR
+              runs = cells[1]?.textContent?.trim() || "0";
+              balls = cells[2]?.textContent?.trim() || "0";
+              fours = cells[3]?.textContent?.trim() || "0";
+              sixes = cells[4]?.textContent?.trim() || "0";
+              sr = cells[5]?.textContent?.trim() || "0";
+            }
+
+            if (!isNaN(parseInt(runs))) {
+              result.allBatting.push({ name, runs, balls, fours, sixes, sr });
             }
           }
         }
 
         if (isBowlTable) {
-          const rows = table.querySelectorAll("tbody tr, tr");
+          // Bowling: Name | O | M | R | W | Econ (consistent across live/completed)
+          let oversColIdx = headerTexts.indexOf("overs");
+          if (oversColIdx === -1) oversColIdx = headerTexts.indexOf("o");
+          if (oversColIdx === -1) oversColIdx = 1;
+
+          const rows = table.querySelectorAll("tbody tr, tr:not(:first-child)");
           for (const row of rows) {
             const cells = row.querySelectorAll("td");
-            if (cells.length >= 6) {
-              const name = cells[0]?.textContent?.trim();
-              const headerCheck = name?.toLowerCase() || "";
-              if (name && !bowlHeaders.includes(headerCheck)) {
-                const entry = {
-                  name,
-                  overs: cells[1]?.textContent?.trim() || "0",
-                  maidens: cells[2]?.textContent?.trim() || "0",
-                  runs: cells[3]?.textContent?.trim() || "0",
-                  wickets: cells[4]?.textContent?.trim() || "0",
-                  econ: cells[5]?.textContent?.trim() || "0",
-                };
-                if (!isNaN(parseInt(entry.wickets))) {
-                  result.allBowling.push(entry);
-                }
-              }
+            if (cells.length < 5) continue;
+
+            const name = cells[0]?.textContent?.trim() || "";
+            const nameLower = name.toLowerCase();
+            if (!name || bowlSkipNames.some(s => nameLower.includes(s))) continue;
+
+            const overs = cells[oversColIdx]?.textContent?.trim() || "0";
+            const maidens = cells[oversColIdx + 1]?.textContent?.trim() || "0";
+            const runs = cells[oversColIdx + 2]?.textContent?.trim() || "0";
+            const wickets = cells[oversColIdx + 3]?.textContent?.trim() || "0";
+            const econ = cells[oversColIdx + 4]?.textContent?.trim() || "0";
+
+            if (!isNaN(parseInt(wickets))) {
+              result.allBowling.push({ name, overs, maidens, runs, wickets, econ });
             }
           }
         }
       }
 
-      // Fallback: if allBatting is empty, use battingNow-style tables
-      if (result.allBatting.length === 0) {
-        for (const table of tables) {
-          const firstCell = table.querySelector("th, td");
-          if (firstCell?.textContent?.trim() === "Batter") {
-            const rows = table.querySelectorAll("tr");
-            for (const row of rows) {
-              const cells = row.querySelectorAll("th, td");
-              if (cells.length >= 6) {
-                const name = cells[0]?.textContent?.trim();
-                if (name && name !== "Batter") {
-                  result.allBatting.push({
-                    name,
-                    runs: cells[1]?.textContent?.trim() || "0",
-                    balls: cells[2]?.textContent?.trim() || "0",
-                    fours: cells[3]?.textContent?.trim() || "0",
-                    sixes: cells[4]?.textContent?.trim() || "0",
-                    sr: cells[5]?.textContent?.trim() || "0",
-                  });
-                }
-              }
-            }
-          }
-          if (firstCell?.textContent?.trim() === "Bowler") {
-            const rows = table.querySelectorAll("tr");
-            for (const row of rows) {
-              const cells = row.querySelectorAll("th, td");
-              if (cells.length >= 6) {
-                const name = cells[0]?.textContent?.trim();
-                if (name && name !== "Bowler") {
-                  result.allBowling.push({
-                    name,
-                    overs: cells[1]?.textContent?.trim() || "0",
-                    maidens: cells[2]?.textContent?.trim() || "0",
-                    runs: cells[3]?.textContent?.trim() || "0",
-                    wickets: cells[4]?.textContent?.trim() || "0",
-                    econ: cells[5]?.textContent?.trim() || "0",
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
+      // Debug: log table info for troubleshooting
+      result._tableCount = tables.length;
+      result._tableHeaders = Array.from(tables).slice(0, 10).map(t => {
+        const ths = t.querySelectorAll("th");
+        return Array.from(ths).map(th => th.textContent?.trim() || "").join("|");
+      });
 
       result.battingNow = result.allBatting;
       result.bowlingNow = result.allBowling;
@@ -282,6 +274,10 @@ async function main() {
         const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
         console.log(`    ${liveData.team1Name} ${liveData.team1Score || "—"} (${liveData.team1Overs || ""}) vs ${liveData.team2Name} ${liveData.team2Score || "—"} (${liveData.team2Overs || ""})`);
         console.log(`    Status: ${statusLabel} - ${liveData.statusText || "(no status)"}`);
+        console.log(`    Tables: ${liveData._tableCount}, Batting: ${liveData.allBatting?.length || 0}, Bowling: ${liveData.allBowling?.length || 0}`);
+        if (liveData._tableHeaders) {
+          console.log(`    Table headers: ${JSON.stringify(liveData._tableHeaders)}`);
+        }
 
         await saveToDb(link.matchId, teamSlug, liveData);
         scrapedMatchIds.add(link.matchId);
