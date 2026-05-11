@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface LiveData {
   team1Score: string;
@@ -34,14 +34,10 @@ export function LiveMatchCenter() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState("");
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    fetchMatches();
-    const interval = setInterval(fetchMatches, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchMatches() {
+  const fetchMatches = useCallback(async () => {
     try {
       const res = await fetch("/api/live-matches");
       const data = await res.json();
@@ -51,7 +47,17 @@ export function LiveMatchCenter() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchMatches();
+    const interval = setInterval(fetchMatches, 30000);
+    return () => {
+      clearInterval(interval);
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [fetchMatches]);
 
   async function triggerRefresh() {
     setRefreshing(true);
@@ -62,17 +68,17 @@ export function LiveMatchCenter() {
       if (data.success) {
         setRefreshMsg("Scraper running — polling for updates...");
         let attempts = 0;
-        const poll = setInterval(async () => {
+        pollRef.current = setInterval(async () => {
           attempts++;
           await fetchMatches();
           if (attempts >= 15) {
-            clearInterval(poll);
+            if (pollRef.current) clearInterval(pollRef.current);
             setRefreshMsg("");
             setRefreshing(false);
           }
         }, 10000);
-        setTimeout(() => {
-          clearInterval(poll);
+        timeoutRef.current = setTimeout(() => {
+          if (pollRef.current) clearInterval(pollRef.current);
           setRefreshMsg("");
           setRefreshing(false);
         }, 150000);
@@ -261,8 +267,8 @@ function LiveCard({ match }: { match: MatchCenterItem }) {
                 </tr>
               </thead>
               <tbody>
-                {ld.battingNow.map((b) => (
-                  <tr key={b.name} className="text-white/80">
+                {ld.battingNow.map((b, i) => (
+                  <tr key={`${b.name}-${i}`} className="text-white/80">
                     <td className="text-left py-0.5 font-medium">{b.name}</td>
                     <td className="text-center py-0.5 font-bold text-white">{b.runs}</td>
                     <td className="text-center py-0.5">{b.balls}</td>
@@ -290,8 +296,8 @@ function LiveCard({ match }: { match: MatchCenterItem }) {
                 </tr>
               </thead>
               <tbody>
-                {ld.bowlingNow.map((b) => (
-                  <tr key={b.name} className="text-white/80">
+                {ld.bowlingNow.map((b, i) => (
+                  <tr key={`${b.name}-${i}`} className="text-white/80">
                     <td className="text-left py-0.5 font-medium">{b.name}</td>
                     <td className="text-center py-0.5">{b.overs}</td>
                     <td className="text-center py-0.5">{b.maidens}</td>
