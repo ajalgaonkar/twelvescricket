@@ -22,7 +22,15 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
     const liveData = await page.evaluate(() => {
       const result: any = {};
 
-      const teamItems = document.querySelectorAll(".match-summary ul.list-inline li.win");
+      // Try multiple selectors for team items — CricClubs uses different classes
+      let teamItems = document.querySelectorAll(".match-summary ul.list-inline li.win");
+      if (teamItems.length < 2) {
+        teamItems = document.querySelectorAll(".match-summary ul.list-inline li");
+      }
+      if (teamItems.length < 2) {
+        teamItems = document.querySelectorAll(".match-summary li");
+      }
+
       if (teamItems.length >= 2) {
         result.team1Name = teamItems[0].querySelector(".teamName")?.textContent?.trim() || "";
         result.team1Score = teamItems[0].querySelector("span:not(.teamName)")?.textContent?.trim() || "";
@@ -40,7 +48,9 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         status.includes("runs needed") ||
         status.includes("wickets remaining") ||
         status.includes("overs remaining") ||
-        status.includes("yet to bat");
+        status.includes("yet to bat") ||
+        status.includes("innings break") ||
+        status.includes("in progress");
       result.isCompleted =
         status.includes("won") ||
         status.includes("tied") ||
@@ -101,9 +111,11 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       return result;
     });
 
-    if (liveData.team1Score || liveData.team2Score) {
+    // Accept match if we found team names (even if scores are empty — match may have just started)
+    if (liveData.team1Name || liveData.team2Name) {
       return liveData;
     }
+    console.log(`    No team data found on page`);
     return null;
   } catch (err) {
     console.log(`    Scorecard failed: ${(err as Error).message}`);
@@ -122,14 +134,15 @@ async function main() {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
   );
 
-  // Clear old live scores
-  await supabase.from("live_scores").delete().neq("match_id", "");
-  console.log("Cleared old live scores.\n");
+  // Remove entries older than 7 days (keep weekend results through the week)
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  await supabase.from("live_scores").delete().lt("updated_at", weekAgo);
+  console.log("Removed entries older than 7 days.\n");
 
   const scrapedMatchIds = new Set<string>();
 
-  // Strategy 1: Check club-level fixtures page for recent scorecard links (last 8 only)
-  console.log("Strategy 1: Checking club fixtures page (most recent matches)...");
+  // Check club-level fixtures page for recent scorecard links
+  console.log("Checking club fixtures page (most recent matches)...");
   try {
     const fixturesUrl = `${BASE_URL}/NWCL/listMatches.do?clubId=${CLUB_ID}`;
     await page.goto(fixturesUrl, { waitUntil: "networkidle2", timeout: 25000 });
@@ -144,14 +157,13 @@ async function main() {
           links.push({ matchId: matchIdMatch[1], href });
         }
       }
-      // Deduplicate and return the most recent 8 (highest match IDs = most recent)
       const seen = new Set<string>();
       const unique = links.filter((l) => {
         if (seen.has(l.matchId)) return false;
         seen.add(l.matchId);
         return true;
       });
-      return unique.sort((a, b) => Number(b.matchId) - Number(a.matchId)).slice(0, 8);
+      return unique.sort((a, b) => Number(b.matchId) - Number(a.matchId)).slice(0, 10);
     });
 
     console.log(`  Found ${allScorecardLinks.length} recent scorecard links`);
@@ -168,8 +180,8 @@ async function main() {
           continue;
         }
         const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
-        console.log(`    ${liveData.team1Name} ${liveData.team1Score} (${liveData.team1Overs}) vs ${liveData.team2Name} ${liveData.team2Score} (${liveData.team2Overs})`);
-        console.log(`    Status: ${statusLabel} - ${liveData.statusText}`);
+        console.log(`    ${liveData.team1Name} ${liveData.team1Score || "—"} (${liveData.team1Overs || ""}) vs ${liveData.team2Name} ${liveData.team2Score || "—"} (${liveData.team2Overs || ""})`);
+        console.log(`    Status: ${statusLabel} - ${liveData.statusText || "(no status)"}`);
 
         await saveToDb(link.matchId, teamSlug, liveData);
         scrapedMatchIds.add(link.matchId);
@@ -191,6 +203,7 @@ function determineTeamSlug(team1Name: string, team2Name: string): string | null 
   if (combined.includes("drone")) return "drones";
   if (combined.includes("jet")) return "jets";
   if (combined.includes("rocket")) return "rockets";
+  if (combined.includes("twelves")) return "unknown-twelves";
   return null;
 }
 
@@ -200,15 +213,15 @@ async function saveToDb(matchId: string, teamSlug: string, liveData: any) {
       match_id: matchId,
       team_slug: teamSlug,
       team1_name: liveData.team1Name,
-      team1_score: liveData.team1Score,
-      team1_overs: liveData.team1Overs,
+      team1_score: liveData.team1Score || "",
+      team1_overs: liveData.team1Overs || "",
       team2_name: liveData.team2Name,
-      team2_score: liveData.team2Score,
-      team2_overs: liveData.team2Overs,
-      status_text: liveData.statusText,
-      is_live: liveData.isLive,
-      batting_now: liveData.battingNow,
-      bowling_now: liveData.bowlingNow,
+      team2_score: liveData.team2Score || "",
+      team2_overs: liveData.team2Overs || "",
+      status_text: liveData.statusText || "",
+      is_live: liveData.isLive || false,
+      batting_now: liveData.battingNow || [],
+      bowling_now: liveData.bowlingNow || [],
       updated_at: new Date().toISOString(),
     },
     { onConflict: "match_id" }

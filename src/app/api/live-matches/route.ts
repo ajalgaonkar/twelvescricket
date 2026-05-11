@@ -11,6 +11,7 @@ const teamColors: Record<string, string> = {
   drones: "#059669",
   jets: "#dc2626",
   rockets: "#7c3aed",
+  "unknown-twelves": "#f59e0b",
 };
 
 const teams = [
@@ -333,7 +334,7 @@ export async function GET(request: Request) {
       return aOrder - bOrder;
     });
 
-    return NextResponse.json({ matches: results.slice(0, 8) });
+    return NextResponse.json({ matches: results.slice(0, 12) });
   } catch {
     return NextResponse.json({ matches: [] }, { status: 500 });
   }
