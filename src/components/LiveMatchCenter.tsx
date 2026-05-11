@@ -153,20 +153,6 @@ export function LiveMatchCenter() {
         </div>
       )}
 
-      {/* Upcoming Matches */}
-      {upcomingMatches.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-[#888] mb-3">
-            Upcoming
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {upcomingMatches.map((match) => (
-              <UpcomingCard key={match.matchId} match={match} />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Recent Results */}
       {completedMatches.length > 0 && (
         <div>
@@ -176,6 +162,20 @@ export function LiveMatchCenter() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {completedMatches.map((match) => (
               <CompletedCard key={match.matchId} match={match} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming Matches */}
+      {upcomingMatches.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[#888] mb-3">
+            Upcoming
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {upcomingMatches.map((match) => (
+              <UpcomingCard key={match.matchId} match={match} />
             ))}
           </div>
         </div>
@@ -367,22 +367,40 @@ function CompletedCard({ match }: { match: MatchCenterItem }) {
           <span className="text-[10px] text-[#666]">{match.date}</span>
         </div>
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className={`text-sm font-semibold truncate ${t1Won ? "text-white" : "text-white/60"}`}>
-              {match.team1}
-            </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {t1Won && (
+                <span className="shrink-0 w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <svg className="w-2.5 h-2.5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )}
+              <p className={`text-sm font-semibold truncate ${t1Won ? "text-green-400" : "text-white/50"}`}>
+                {match.team1}
+              </p>
+            </div>
             {ld?.team1Score && (
-              <span className={`text-sm font-bold ${t1Won ? "text-white" : "text-white/60"}`}>
+              <span className={`text-sm font-bold shrink-0 ${t1Won ? "text-green-400" : "text-white/50"}`}>
                 {ld.team1Score}
               </span>
             )}
           </div>
-          <div className="flex items-center justify-between">
-            <p className={`text-sm font-semibold truncate ${t2Won ? "text-white" : "text-white/60"}`}>
-              {match.team2}
-            </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {t2Won && (
+                <span className="shrink-0 w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <svg className="w-2.5 h-2.5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )}
+              <p className={`text-sm font-semibold truncate ${t2Won ? "text-green-400" : "text-white/50"}`}>
+                {match.team2}
+              </p>
+            </div>
             {ld?.team2Score && (
-              <span className={`text-sm font-bold ${t2Won ? "text-white" : "text-white/60"}`}>
+              <span className={`text-sm font-bold shrink-0 ${t2Won ? "text-green-400" : "text-white/50"}`}>
                 {ld.team2Score}
               </span>
             )}
