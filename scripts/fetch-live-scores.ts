@@ -90,17 +90,28 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       result.allBowling = [];
 
       const tables = document.querySelectorAll("table");
-      for (const table of tables) {
-        const firstCell = table.querySelector("th, td");
-        const header = firstCell?.textContent?.trim() || "";
+      const batHeaders = ["batter", "batsman", "batting"];
+      const bowlHeaders = ["bowler", "bowling"];
 
-        if (header === "Batter") {
-          const rows = table.querySelectorAll("tr");
+      for (const table of tables) {
+        const headers = table.querySelectorAll("th");
+        const firstHeader = headers[0]?.textContent?.trim().toLowerCase() || "";
+        // Also check thead for the header pattern
+        const allHeaderText = Array.from(headers).map(h => h.textContent?.trim().toLowerCase() || "").join(" ");
+
+        const isBatTable = batHeaders.some(h => firstHeader === h) ||
+          (allHeaderText.includes("runs") && allHeaderText.includes("balls") && allHeaderText.includes("4s"));
+        const isBowlTable = bowlHeaders.some(h => firstHeader === h) ||
+          (allHeaderText.includes("overs") && allHeaderText.includes("wickets") && allHeaderText.includes("econ"));
+
+        if (isBatTable) {
+          const rows = table.querySelectorAll("tbody tr, tr");
           for (const row of rows) {
-            const cells = row.querySelectorAll("th, td");
+            const cells = row.querySelectorAll("td");
             if (cells.length >= 6) {
               const name = cells[0]?.textContent?.trim();
-              if (name && name !== "Batter") {
+              const headerCheck = name?.toLowerCase() || "";
+              if (name && !batHeaders.includes(headerCheck) && !headerCheck.includes("extras") && !headerCheck.includes("total") && !headerCheck.includes("did not bat")) {
                 const entry = {
                   name,
                   runs: cells[1]?.textContent?.trim() || "0",
@@ -109,25 +120,23 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
                   sixes: cells[4]?.textContent?.trim() || "0",
                   sr: cells[5]?.textContent?.trim() || "0",
                 };
-                result.allBatting.push(entry);
-                if (result.battingNow.length === 0) {
-                  result.battingNow.push(entry);
+                // Skip if runs is not a number (header row)
+                if (!isNaN(parseInt(entry.runs))) {
+                  result.allBatting.push(entry);
                 }
               }
             }
           }
-          if (result.battingNow.length > 0 && result.battingNow.length === 1) {
-            result.battingNow = [];
-          }
         }
 
-        if (header === "Bowler") {
-          const rows = table.querySelectorAll("tr");
+        if (isBowlTable) {
+          const rows = table.querySelectorAll("tbody tr, tr");
           for (const row of rows) {
-            const cells = row.querySelectorAll("th, td");
+            const cells = row.querySelectorAll("td");
             if (cells.length >= 6) {
               const name = cells[0]?.textContent?.trim();
-              if (name && name !== "Bowler") {
+              const headerCheck = name?.toLowerCase() || "";
+              if (name && !bowlHeaders.includes(headerCheck)) {
                 const entry = {
                   name,
                   overs: cells[1]?.textContent?.trim() || "0",
@@ -136,18 +145,62 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
                   wickets: cells[4]?.textContent?.trim() || "0",
                   econ: cells[5]?.textContent?.trim() || "0",
                 };
-                result.allBowling.push(entry);
-                if (result.bowlingNow.length === 0) {
-                  result.bowlingNow.push(entry);
+                if (!isNaN(parseInt(entry.wickets))) {
+                  result.allBowling.push(entry);
                 }
               }
             }
           }
-          if (result.bowlingNow.length > 0 && result.bowlingNow.length === 1) {
-            result.bowlingNow = [];
+        }
+      }
+
+      // Fallback: if allBatting is empty, use battingNow-style tables
+      if (result.allBatting.length === 0) {
+        for (const table of tables) {
+          const firstCell = table.querySelector("th, td");
+          if (firstCell?.textContent?.trim() === "Batter") {
+            const rows = table.querySelectorAll("tr");
+            for (const row of rows) {
+              const cells = row.querySelectorAll("th, td");
+              if (cells.length >= 6) {
+                const name = cells[0]?.textContent?.trim();
+                if (name && name !== "Batter") {
+                  result.allBatting.push({
+                    name,
+                    runs: cells[1]?.textContent?.trim() || "0",
+                    balls: cells[2]?.textContent?.trim() || "0",
+                    fours: cells[3]?.textContent?.trim() || "0",
+                    sixes: cells[4]?.textContent?.trim() || "0",
+                    sr: cells[5]?.textContent?.trim() || "0",
+                  });
+                }
+              }
+            }
+          }
+          if (firstCell?.textContent?.trim() === "Bowler") {
+            const rows = table.querySelectorAll("tr");
+            for (const row of rows) {
+              const cells = row.querySelectorAll("th, td");
+              if (cells.length >= 6) {
+                const name = cells[0]?.textContent?.trim();
+                if (name && name !== "Bowler") {
+                  result.allBowling.push({
+                    name,
+                    overs: cells[1]?.textContent?.trim() || "0",
+                    maidens: cells[2]?.textContent?.trim() || "0",
+                    runs: cells[3]?.textContent?.trim() || "0",
+                    wickets: cells[4]?.textContent?.trim() || "0",
+                    econ: cells[5]?.textContent?.trim() || "0",
+                  });
+                }
+              }
+            }
           }
         }
       }
+
+      result.battingNow = result.allBatting;
+      result.bowlingNow = result.allBowling;
 
       return result;
     });
