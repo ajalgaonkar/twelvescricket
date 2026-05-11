@@ -108,12 +108,23 @@ CREATE TABLE live_scores (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Spotlight action photos (game-day photos tagged to players)
+CREATE TABLE spotlight_photos (
+  id SERIAL PRIMARY KEY,
+  player_name TEXT NOT NULL,
+  photo_url TEXT NOT NULL,
+  match_id TEXT,
+  caption TEXT,
+  uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX idx_players_team ON players(team_slug);
 CREATE INDEX idx_batting_player ON batting_stats(player_id, team_slug);
 CREATE INDEX idx_bowling_player ON bowling_stats(player_id, team_slug);
 CREATE INDEX idx_matches_team ON matches(team_slug);
 CREATE INDEX idx_live_scores_match ON live_scores(match_id);
+CREATE INDEX idx_spotlight_photos_player ON spotlight_photos(player_name);
 
 -- Row Level Security
 ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
@@ -130,3 +141,4 @@ CREATE POLICY "Public read access" ON batting_stats FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON bowling_stats FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON matches FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON live_scores FOR SELECT USING (true);
+CREATE POLICY "Public read access" ON spotlight_photos FOR SELECT USING (true);
