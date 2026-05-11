@@ -8,19 +8,26 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-interface PlayerPerf {
+interface BatterPerf {
   name: string;
-  type: "bat" | "bowl";
-  runs?: string;
-  balls?: string;
-  fours?: string;
-  sixes?: string;
-  sr?: string;
-  overs?: string;
-  maidens?: string;
-  wickets?: string;
-  econ?: string;
-  matchContext: string;
+  runs: string;
+  balls: string;
+  fours: string;
+  sixes: string;
+  sr: string;
+  matchContext?: string;
+  photoUrl?: string;
+  actionPhotos?: string[];
+}
+
+interface BowlerPerf {
+  name: string;
+  overs: string;
+  maidens: string;
+  runs: string;
+  wickets: string;
+  econ: string;
+  matchContext?: string;
   photoUrl?: string;
   actionPhotos?: string[];
 }
@@ -31,13 +38,14 @@ interface MatchData {
   teamSlug: string;
   status: string;
   liveData: {
-    battingNow: { name: string; runs: string; balls: string; fours: string; sixes: string; sr: string }[];
-    bowlingNow: { name: string; overs: string; maidens: string; runs: string; wickets: string; econ: string }[];
+    battingNow: BatterPerf[];
+    bowlingNow: BowlerPerf[];
   } | null;
 }
 
 export function PlayerSpotlight() {
-  const [performers, setPerformers] = useState<PlayerPerf[]>([]);
+  const [topBatters, setTopBatters] = useState<BatterPerf[]>([]);
+  const [topBowlers, setTopBowlers] = useState<BowlerPerf[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [showBatting, setShowBatting] = useState(true);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
@@ -47,14 +55,15 @@ export function PlayerSpotlight() {
     fetchPerformers();
   }, []);
 
-  const currentList = performers.filter((p) => (showBatting ? p.type === "bat" : p.type === "bowl"));
+  const currentList = showBatting ? topBatters : topBowlers;
 
   const rotate = useCallback(() => {
     setActiveIndex((prev) => {
-      if (currentList.length === 0) return 0;
-      return (prev + 1) % currentList.length;
+      const list = showBatting ? topBatters : topBowlers;
+      if (list.length === 0) return 0;
+      return (prev + 1) % list.length;
     });
-  }, [currentList.length]);
+  }, [showBatting, topBatters, topBowlers]);
 
   useEffect(() => {
     if (currentList.length <= 1) return;
@@ -72,7 +81,6 @@ export function PlayerSpotlight() {
       const data = await matchRes.json();
       const matches: MatchData[] = data.matches || [];
 
-      // Build name sets and maps
       const playerNames = new Set<string>();
       const photoMap = new Map<string, string>();
       if (playersRes.data) {
@@ -84,7 +92,6 @@ export function PlayerSpotlight() {
         }
       }
 
-      // Action photos grouped by player
       const actionPhotosMap = new Map<string, string[]>();
       if (photosRes.data) {
         for (const ph of photosRes.data) {
@@ -95,8 +102,8 @@ export function PlayerSpotlight() {
         }
       }
 
-      const batters: PlayerPerf[] = [];
-      const bowlers: PlayerPerf[] = [];
+      const batters: BatterPerf[] = [];
+      const bowlers: BowlerPerf[] = [];
 
       for (const match of matches) {
         if (!match.liveData) continue;
@@ -106,13 +113,7 @@ export function PlayerSpotlight() {
           const runs = parseInt(b.runs) || 0;
           if (runs >= 20 && playerNames.has(b.name.toLowerCase())) {
             batters.push({
-              name: b.name,
-              type: "bat",
-              runs: b.runs,
-              balls: b.balls,
-              fours: b.fours,
-              sixes: b.sixes,
-              sr: b.sr,
+              ...b,
               matchContext: context,
               photoUrl: photoMap.get(b.name.toLowerCase()),
               actionPhotos: actionPhotosMap.get(b.name.toLowerCase()),
@@ -124,13 +125,7 @@ export function PlayerSpotlight() {
           const wickets = parseInt(bw.wickets) || 0;
           if (wickets >= 1 && playerNames.has(bw.name.toLowerCase())) {
             bowlers.push({
-              name: bw.name,
-              type: "bowl",
-              runs: bw.runs,
-              overs: bw.overs,
-              maidens: bw.maidens,
-              wickets: bw.wickets,
-              econ: bw.econ,
+              ...bw,
               matchContext: context,
               photoUrl: photoMap.get(bw.name.toLowerCase()),
               actionPhotos: actionPhotosMap.get(bw.name.toLowerCase()),
@@ -139,14 +134,15 @@ export function PlayerSpotlight() {
         }
       }
 
-      batters.sort((a, b) => (parseInt(b.runs || "0") || 0) - (parseInt(a.runs || "0") || 0));
+      batters.sort((a, b) => (parseInt(b.runs) || 0) - (parseInt(a.runs) || 0));
       bowlers.sort((a, b) => {
-        const wDiff = (parseInt(b.wickets || "0") || 0) - (parseInt(a.wickets || "0") || 0);
+        const wDiff = (parseInt(b.wickets) || 0) - (parseInt(a.wickets) || 0);
         if (wDiff !== 0) return wDiff;
-        return (parseFloat(a.econ || "99") || 99) - (parseFloat(b.econ || "99") || 99);
+        return (parseFloat(a.econ) || 99) - (parseFloat(b.econ) || 99);
       });
 
-      setPerformers([...batters.slice(0, 8), ...bowlers.slice(0, 8)]);
+      setTopBatters(batters.slice(0, 8));
+      setTopBowlers(bowlers.slice(0, 8));
     } catch {
       // silently fail
     }
@@ -173,10 +169,7 @@ export function PlayerSpotlight() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  const batCount = performers.filter((p) => p.type === "bat").length;
-  const bowlCount = performers.filter((p) => p.type === "bowl").length;
-
-  if (batCount === 0 && bowlCount === 0) {
+  if (topBatters.length === 0 && topBowlers.length === 0) {
     return null;
   }
 
@@ -192,53 +185,50 @@ export function PlayerSpotlight() {
 
       {/* Toggle */}
       <div className="flex items-center justify-center gap-2">
-        {batCount > 0 && (
-          <button
-            onClick={() => { setShowBatting(true); setActiveIndex(0); }}
-            className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-full transition-colors ${
-              showBatting
-                ? "bg-white text-black"
-                : "bg-[#1a1a1a] text-[#888] border border-[#333] hover:text-white"
-            }`}
-          >
-            Top Batters
-          </button>
-        )}
-        {bowlCount > 0 && (
-          <button
-            onClick={() => { setShowBatting(false); setActiveIndex(0); }}
-            className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-full transition-colors ${
-              !showBatting
-                ? "bg-white text-black"
-                : "bg-[#1a1a1a] text-[#888] border border-[#333] hover:text-white"
-            }`}
-          >
-            Top Bowlers
-          </button>
-        )}
+        <button
+          onClick={() => { setShowBatting(true); setActiveIndex(0); }}
+          className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-full transition-colors ${
+            showBatting
+              ? "bg-white text-black"
+              : "bg-[#1a1a1a] text-[#888] border border-[#333] hover:text-white"
+          }`}
+        >
+          Top Batters
+        </button>
+        <button
+          onClick={() => { setShowBatting(false); setActiveIndex(0); }}
+          className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-full transition-colors ${
+            !showBatting
+              ? "bg-white text-black"
+              : "bg-[#1a1a1a] text-[#888] border border-[#333] hover:text-white"
+          }`}
+        >
+          Top Bowlers
+        </button>
       </div>
 
-      {/* Spotlight Cards */}
-      {currentList.length > 0 && (
-        <div className="relative overflow-hidden">
-          <div
-            className="flex transition-transform duration-500 ease-in-out"
-            style={{ transform: `translateX(-${activeIndex * 100}%)` }}
-          >
-            {currentList.map((player, idx) => (
-              <div key={`${player.name}-${idx}`} className="w-full shrink-0 px-1">
-                <SpotlightCard
-                  player={player}
-                  onUploadPhoto={() => {
-                    setUploadingFor(player.name);
-                    fileInputRef.current?.click();
-                  }}
+      {/* Spotlight Card */}
+      <div className="relative overflow-hidden">
+        <div className="flex transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+        >
+          {currentList.map((player, idx) => (
+            <div key={`${player.name}-${idx}`} className="w-full shrink-0 px-1">
+              {showBatting ? (
+                <BatterCard
+                  player={player as BatterPerf}
+                  onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
                 />
-              </div>
-            ))}
-          </div>
+              ) : (
+                <BowlerCard
+                  player={player as BowlerPerf}
+                  onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
+                />
+              )}
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Dots */}
       {currentList.length > 1 && (
@@ -258,85 +248,121 @@ export function PlayerSpotlight() {
   );
 }
 
-function SpotlightCard({ player, onUploadPhoto }: { player: PlayerPerf; onUploadPhoto: () => void }) {
-  const isBatter = player.type === "bat";
-  const actionPhoto = player.actionPhotos?.[0];
+function ActionPhotoBanner({ photos, playerName }: { photos?: string[]; playerName: string }) {
+  if (!photos || photos.length === 0) return null;
+  return (
+    <div className="relative h-28 w-full mb-3 rounded-lg overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={photos[0]}
+        alt={`${playerName} in action`}
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a]/80 to-transparent" />
+      {photos.length > 1 && (
+        <span className="absolute top-2 right-2 text-[9px] bg-black/60 text-white/70 px-1.5 py-0.5 rounded-full">
+          +{photos.length - 1}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function UploadButton({ onUpload }: { onUpload: () => void }) {
+  return (
+    <button
+      onClick={onUpload}
+      className="flex items-center gap-1 text-[10px] text-[#555] hover:text-white/70 transition-colors mt-3"
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+      </svg>
+      Add Photo
+    </button>
+  );
+}
+
+function BatterCard({ player, onUploadPhoto }: { player: BatterPerf; onUploadPhoto: () => void }) {
+  const runs = parseInt(player.runs) || 0;
+  const balls = parseInt(player.balls) || 0;
+  const fours = parseInt(player.fours) || 0;
+  const sixes = parseInt(player.sixes) || 0;
 
   return (
-    <div className="bg-[#1a1a1a] rounded-xl border border-[#333] overflow-hidden">
-      {/* Action photo banner if available */}
-      {actionPhoto && (
-        <div className="relative h-32 w-full">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={actionPhoto}
-            alt={`${player.name} in action`}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
-        </div>
+    <div className="bg-[#1a1a1a] rounded-xl border border-[#333] p-5 text-center">
+      <ActionPhotoBanner photos={player.actionPhotos} playerName={player.name} />
+      {player.photoUrl && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={player.photoUrl}
+          alt={player.name}
+          className="w-11 h-11 rounded-full mx-auto mb-2 object-cover border-2 border-yellow-400/50"
+        />
       )}
-
-      <div className={`flex items-center gap-3 ${actionPhoto ? "px-4 -mt-4 relative" : "px-4 pt-4"}`}>
-        {/* Profile photo — only render if available */}
-        {player.photoUrl && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={player.photoUrl}
-            alt={player.name}
-            className={`w-10 h-10 rounded-full object-cover shrink-0 ${
-              isBatter ? "border-2 border-yellow-400/60" : "border-2 border-blue-400/60"
-            }`}
-          />
-        )}
-
-        <div className="min-w-0">
-          <h4 className="text-sm font-bold text-white truncate">{player.name}</h4>
-          <p className="text-[10px] text-[#666] truncate">{player.matchContext}</p>
+      <h4 className="text-base font-bold text-white">{player.name}</h4>
+      {player.matchContext && (
+        <p className="text-[11px] text-[#666] mt-0.5">{player.matchContext}</p>
+      )}
+      <div className="mt-3 flex items-center justify-center gap-6">
+        <div>
+          <p className="text-2xl font-bold text-yellow-400">{runs}</p>
+          <p className="text-[10px] text-[#888] uppercase tracking-wider mt-0.5">Runs</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold text-white/80">{balls}</p>
+          <p className="text-[10px] text-[#888] uppercase tracking-wider mt-0.5">Balls</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold text-white/80">{player.sr}</p>
+          <p className="text-[10px] text-[#888] uppercase tracking-wider mt-0.5">SR</p>
         </div>
       </div>
-
-      {/* Stats row */}
-      <div className="px-4 py-3">
-        {isBatter ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-yellow-400">{player.runs}</span>
-              <span className="text-[10px] text-[#888]">({player.balls})</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs text-[#888]">
-              <span>SR {player.sr}</span>
-              <span>{player.fours}×4</span>
-              <span>{player.sixes}×6</span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-blue-400">{player.wickets}/{player.runs}</span>
-              <span className="text-[10px] text-[#888]">({player.overs} ov)</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs text-[#888]">
-              <span>Econ {player.econ}</span>
-              {parseInt(player.maidens || "0") > 0 && <span>{player.maidens} mdn</span>}
-            </div>
-          </div>
-        )}
+      <div className="mt-2 flex items-center justify-center gap-4 text-xs text-[#888]">
+        <span>{fours} fours</span>
+        <span>{sixes} sixes</span>
       </div>
+      <UploadButton onUpload={onUploadPhoto} />
+    </div>
+  );
+}
 
-      {/* Upload photo action */}
-      <div className="px-4 pb-3 flex items-center justify-end">
-        <button
-          onClick={onUploadPhoto}
-          className="flex items-center gap-1 text-[10px] text-[#555] hover:text-white/70 transition-colors"
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-          </svg>
-          Add Photo
-        </button>
+function BowlerCard({ player, onUploadPhoto }: { player: BowlerPerf; onUploadPhoto: () => void }) {
+  const wickets = parseInt(player.wickets) || 0;
+
+  return (
+    <div className="bg-[#1a1a1a] rounded-xl border border-[#333] p-5 text-center">
+      <ActionPhotoBanner photos={player.actionPhotos} playerName={player.name} />
+      {player.photoUrl && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={player.photoUrl}
+          alt={player.name}
+          className="w-11 h-11 rounded-full mx-auto mb-2 object-cover border-2 border-blue-400/50"
+        />
+      )}
+      <h4 className="text-base font-bold text-white">{player.name}</h4>
+      {player.matchContext && (
+        <p className="text-[11px] text-[#666] mt-0.5">{player.matchContext}</p>
+      )}
+      <div className="mt-3 flex items-center justify-center gap-6">
+        <div>
+          <p className="text-2xl font-bold text-blue-400">{wickets}/{player.runs}</p>
+          <p className="text-[10px] text-[#888] uppercase tracking-wider mt-0.5">Figures</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold text-white/80">{player.overs}</p>
+          <p className="text-[10px] text-[#888] uppercase tracking-wider mt-0.5">Overs</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold text-white/80">{player.econ}</p>
+          <p className="text-[10px] text-[#888] uppercase tracking-wider mt-0.5">Econ</p>
+        </div>
       </div>
+      <div className="mt-2 flex items-center justify-center gap-4 text-xs text-[#888]">
+        <span>{player.maidens} maidens</span>
+      </div>
+      <UploadButton onUpload={onUploadPhoto} />
     </div>
   );
 }
