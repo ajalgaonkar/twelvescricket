@@ -22,23 +22,35 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
     const liveData = await page.evaluate(() => {
       const result: any = {};
 
-      // Try multiple selectors for team items
-      let teamItems = document.querySelectorAll(".match-summary ul.list-inline li.win");
-      if (teamItems.length < 2) {
-        teamItems = document.querySelectorAll(".match-summary ul.list-inline li");
+      // Find team items — filter to only li elements that contain team-related content
+      const allLis = document.querySelectorAll(".match-summary ul.list-inline li");
+      const teamLis: Element[] = [];
+      for (const li of allLis) {
+        // A team li has either .teamName span, or a score span, or meaningful text
+        if (li.querySelector(".teamName") || li.querySelector("span") || li.textContent?.trim()) {
+          // Skip if it's just a "vs" separator or empty
+          const text = li.textContent?.trim() || "";
+          if (text === "vs" || text === "v" || text === "") continue;
+          teamLis.push(li);
+        }
       }
-      if (teamItems.length < 2) {
-        teamItems = document.querySelectorAll(".match-summary li");
+
+      // Use li.win if available (most reliable), otherwise use filtered lis
+      let t1: Element | null = null;
+      let t2: Element | null = null;
+      const winItems = document.querySelectorAll(".match-summary ul.list-inline li.win");
+      if (winItems.length >= 2) {
+        t1 = winItems[0];
+        t2 = winItems[1];
+      } else if (teamLis.length >= 2) {
+        // Take the first two that have meaningful content
+        t1 = teamLis[0];
+        t2 = teamLis[1];
       }
 
-      // Debug info
-      result._debug = `Found ${teamItems.length} team items`;
+      result._debug = `winItems=${winItems.length}, teamLis=${teamLis.length}`;
 
-      if (teamItems.length >= 2) {
-        // Extract team name: try .teamName, then anchor, then first non-numeric span
-        const t1 = teamItems[0];
-        const t2 = teamItems[1];
-
+      if (t1 && t2) {
         result.team1Name = t1.querySelector(".teamName")?.textContent?.trim()
           || t1.querySelector("a")?.textContent?.trim()
           || "";
@@ -51,9 +63,8 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         result.team2Score = t2.querySelector("span:not(.teamName)")?.textContent?.trim() || "";
         result.team2Overs = t2.querySelector("p")?.textContent?.trim() || "";
 
-        // If team name still empty, try innerHTML for debugging
-        if (!result.team1Name) result._t1Html = t1.innerHTML.slice(0, 200);
-        if (!result.team2Name) result._t2Html = t2.innerHTML.slice(0, 200);
+        if (!result.team1Name) result._t1Html = t1.innerHTML.slice(0, 300);
+        if (!result.team2Name) result._t2Html = t2.innerHTML.slice(0, 300);
       }
 
       const h3s = document.querySelectorAll(".score-top .container h3");
