@@ -153,7 +153,7 @@ export function LiveMatchCenter() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {liveMatches.map((match) => (
-              <LiveCard key={match.matchId} match={match} />
+              <LiveCard key={`${match.matchId}-${match.teamSlug}`} match={match} />
             ))}
           </div>
         </div>
@@ -167,7 +167,7 @@ export function LiveMatchCenter() {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {completedMatches.map((match) => (
-              <CompletedCard key={match.matchId} match={match} />
+              <CompletedCard key={`${match.matchId}-${match.teamSlug}`} match={match} />
             ))}
           </div>
         </div>
@@ -181,7 +181,7 @@ export function LiveMatchCenter() {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {upcomingMatches.map((match) => (
-              <UpcomingCard key={match.matchId} match={match} />
+              <UpcomingCard key={`${match.matchId}-${match.teamSlug}`} match={match} />
             ))}
           </div>
         </div>
