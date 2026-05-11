@@ -338,6 +338,19 @@ function UpcomingCard({ match }: { match: MatchCenterItem }) {
 }
 
 function CompletedCard({ match }: { match: MatchCenterItem }) {
+  const ld = match.liveData;
+  const t1Runs = parseInt(ld?.team1Score || "0") || 0;
+  const t2Runs = parseInt(ld?.team2Score || "0") || 0;
+  const t1Won = t1Runs > t2Runs;
+  const t2Won = t2Runs > t1Runs;
+
+  let winText = match.result || "";
+  if (!winText && ld) {
+    if (t1Won) winText = `${match.team1} won`;
+    else if (t2Won) winText = `${match.team2} won`;
+    else winText = "Match tied";
+  }
+
   return (
     <a
       href={match.scorecardUrl}
@@ -353,13 +366,32 @@ function CompletedCard({ match }: { match: MatchCenterItem }) {
           </span>
           <span className="text-[10px] text-[#666]">{match.date}</span>
         </div>
-        <div className="space-y-1.5">
-          <p className="text-sm font-semibold text-white truncate">{match.team1}</p>
-          <p className="text-[10px] text-[#555] font-bold">VS</p>
-          <p className="text-sm font-semibold text-white truncate">{match.team2}</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className={`text-sm font-semibold truncate ${t1Won ? "text-white" : "text-white/60"}`}>
+              {match.team1}
+            </p>
+            {ld?.team1Score && (
+              <span className={`text-sm font-bold ${t1Won ? "text-white" : "text-white/60"}`}>
+                {ld.team1Score}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <p className={`text-sm font-semibold truncate ${t2Won ? "text-white" : "text-white/60"}`}>
+              {match.team2}
+            </p>
+            {ld?.team2Score && (
+              <span className={`text-sm font-bold ${t2Won ? "text-white" : "text-white/60"}`}>
+                {ld.team2Score}
+              </span>
+            )}
+          </div>
         </div>
-        {match.result && (
-          <p className="text-xs text-green-400 mt-3 line-clamp-2">{match.result}</p>
+        {winText && (
+          <p className="text-xs text-green-400 mt-3 pt-2 border-t border-[#333] line-clamp-2">
+            {winText}
+          </p>
         )}
       </div>
     </a>
