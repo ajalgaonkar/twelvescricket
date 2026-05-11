@@ -250,13 +250,28 @@ export async function GET(request: Request) {
       if (liveScores && liveScores.length > 0) {
         for (const ls of liveScores) {
           const statusLower = (ls.status_text || "").toLowerCase();
-          const isCompleted =
+          const hasScores = !!(ls.team1_score || ls.team2_score);
+
+          // Determine match status
+          const isCompletedByStatus =
             statusLower.includes("won") ||
             statusLower.includes("tied") ||
             statusLower.includes("draw") ||
             statusLower.includes("no result");
-          // A match is live if: explicitly marked live, OR has score data and isn't completed
-          const hasScores = !!(ls.team1_score || ls.team2_score);
+
+          // Detect completed matches even if status text hasn't updated:
+          // If both teams have scores with "/10" (all out) or the chasing team passed target
+          const t1Score = ls.team1_score || "";
+          const t2Score = ls.team2_score || "";
+          const t1AllOut = t1Score.includes("/10");
+          const t2AllOut = t2Score.includes("/10");
+          const t1Runs = parseInt(t1Score) || 0;
+          const t2Runs = parseInt(t2Score) || 0;
+          const bothBatted = !!(t1Score && t2Score);
+          const chaseComplete = bothBatted && (t2Runs > t1Runs || t2AllOut);
+          const isCompleted = isCompletedByStatus || chaseComplete;
+
+          // Truly live: explicitly marked OR has scores and not completed
           const isLive = ls.is_live || (hasScores && !isCompleted);
 
           results.push({
