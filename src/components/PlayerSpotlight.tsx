@@ -50,6 +50,7 @@ export function PlayerSpotlight() {
   const [showBatting, setShowBatting] = useState(true);
   const [paused, setPaused] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<{ player: string; status: "uploading" | "done" | "error" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -163,6 +164,8 @@ export function PlayerSpotlight() {
     const file = e.target.files?.[0];
     if (!file || !uploadingFor) return;
 
+    setUploadStatus({ player: uploadingFor, status: "uploading" });
+
     const formData = new FormData();
     formData.append("photo", file);
     formData.append("playerName", uploadingFor);
@@ -171,13 +174,33 @@ export function PlayerSpotlight() {
       const res = await fetch("/api/spotlight-photos", { method: "POST", body: formData });
       const data = await res.json();
       if (data.success) {
+        setUploadStatus({ player: uploadingFor, status: "done" });
+        fetchPerformers();
+      } else {
+        setUploadStatus({ player: uploadingFor, status: "error" });
+      }
+    } catch {
+      setUploadStatus({ player: uploadingFor, status: "error" });
+    }
+    setUploadingFor(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setTimeout(() => setUploadStatus(null), 3000);
+  }
+
+  async function handleDeletePhoto(photoUrl: string, playerName: string) {
+    try {
+      const res = await fetch("/api/spotlight-photos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoUrl, playerName }),
+      });
+      const data = await res.json();
+      if (data.success) {
         fetchPerformers();
       }
     } catch {
       // silently fail
     }
-    setUploadingFor(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   if (topBatters.length === 0 && topBowlers.length === 0) {
@@ -193,6 +216,19 @@ export function PlayerSpotlight() {
         className="hidden"
         onChange={handlePhotoUpload}
       />
+
+      {/* Upload Status */}
+      {uploadStatus && (
+        <div className={`text-center text-xs py-1.5 rounded-lg ${
+          uploadStatus.status === "uploading" ? "bg-yellow-900/30 text-yellow-400" :
+          uploadStatus.status === "done" ? "bg-green-900/30 text-green-400" :
+          "bg-red-900/30 text-red-400"
+        }`}>
+          {uploadStatus.status === "uploading" && `Uploading photo for ${uploadStatus.player}...`}
+          {uploadStatus.status === "done" && `Photo uploaded for ${uploadStatus.player}`}
+          {uploadStatus.status === "error" && `Failed to upload photo for ${uploadStatus.player}`}
+        </div>
+      )}
 
       {/* Toggle */}
       <div className="flex items-center justify-center gap-2">
@@ -254,11 +290,13 @@ export function PlayerSpotlight() {
                   <BatterCard
                     player={player as BatterPerf}
                     onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
+                    onDeletePhoto={(url) => handleDeletePhoto(url, player.name)}
                   />
                 ) : (
                   <BowlerCard
                     player={player as BowlerPerf}
                     onUploadPhoto={() => { setUploadingFor(player.name); fileInputRef.current?.click(); }}
+                    onDeletePhoto={(url) => handleDeletePhoto(url, player.name)}
                   />
                 )}
               </div>
@@ -302,17 +340,28 @@ export function PlayerSpotlight() {
   );
 }
 
-function ActionPhotoBanner({ photos, playerName }: { photos?: string[]; playerName: string }) {
+function ActionPhotoBanner({ photos, playerName, onDelete }: { photos?: string[]; playerName: string; onDelete?: (url: string) => void }) {
   if (!photos || photos.length === 0) return null;
   return (
-    <div className="relative h-28 w-full mb-3 rounded-lg overflow-hidden">
+    <div className="relative w-full mb-3 rounded-lg overflow-hidden group bg-black/30">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={photos[0]}
         alt={`${playerName} in action`}
-        className="w-full h-full object-cover"
+        className="w-full max-h-48 object-contain mx-auto"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a]/80 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#1a1a1a]/80 to-transparent" />
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(photos[0]); }}
+          className="absolute top-2 left-2 w-5 h-5 flex items-center justify-center rounded-full bg-red-600/80 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label="Delete photo"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
       {photos.length > 1 && (
         <span className="absolute top-2 right-2 text-[9px] bg-black/60 text-white/70 px-1.5 py-0.5 rounded-full">
           +{photos.length - 1}
@@ -337,7 +386,7 @@ function UploadButton({ onUpload }: { onUpload: () => void }) {
   );
 }
 
-function BatterCard({ player, onUploadPhoto }: { player: BatterPerf; onUploadPhoto: () => void }) {
+function BatterCard({ player, onUploadPhoto, onDeletePhoto }: { player: BatterPerf; onUploadPhoto: () => void; onDeletePhoto: (url: string) => void }) {
   const runs = parseInt(player.runs) || 0;
   const balls = parseInt(player.balls) || 0;
   const fours = parseInt(player.fours) || 0;
@@ -345,13 +394,13 @@ function BatterCard({ player, onUploadPhoto }: { player: BatterPerf; onUploadPho
 
   return (
     <div className="bg-[#1a1a1a] rounded-xl border border-[#333] p-5 text-center">
-      <ActionPhotoBanner photos={player.actionPhotos} playerName={player.name} />
+      <ActionPhotoBanner photos={player.actionPhotos} playerName={player.name} onDelete={onDeletePhoto} />
       {player.photoUrl && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
           src={player.photoUrl}
           alt={player.name}
-          className="w-11 h-11 rounded-full mx-auto mb-2 object-cover border-2 border-yellow-400/50"
+          className="w-8 h-8 rounded-full mx-auto mb-2 object-cover border-2 border-yellow-400/50"
         />
       )}
       <h4 className="text-base font-bold text-white">{player.name}</h4>
@@ -381,18 +430,18 @@ function BatterCard({ player, onUploadPhoto }: { player: BatterPerf; onUploadPho
   );
 }
 
-function BowlerCard({ player, onUploadPhoto }: { player: BowlerPerf; onUploadPhoto: () => void }) {
+function BowlerCard({ player, onUploadPhoto, onDeletePhoto }: { player: BowlerPerf; onUploadPhoto: () => void; onDeletePhoto: (url: string) => void }) {
   const wickets = parseInt(player.wickets) || 0;
 
   return (
     <div className="bg-[#1a1a1a] rounded-xl border border-[#333] p-5 text-center">
-      <ActionPhotoBanner photos={player.actionPhotos} playerName={player.name} />
+      <ActionPhotoBanner photos={player.actionPhotos} playerName={player.name} onDelete={onDeletePhoto} />
       {player.photoUrl && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
           src={player.photoUrl}
           alt={player.name}
-          className="w-11 h-11 rounded-full mx-auto mb-2 object-cover border-2 border-blue-400/50"
+          className="w-8 h-8 rounded-full mx-auto mb-2 object-cover border-2 border-blue-400/50"
         />
       )}
       <h4 className="text-base font-bold text-white">{player.name}</h4>

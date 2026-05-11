@@ -20,6 +20,34 @@ export async function GET(request: Request) {
   return NextResponse.json({ photos: data || [] });
 }
 
+export async function DELETE(request: Request) {
+  try {
+    const { photoUrl, playerName } = await request.json();
+    if (!photoUrl || !playerName) {
+      return NextResponse.json({ error: "photoUrl and playerName required" }, { status: 400 });
+    }
+
+    const fileName = photoUrl.split("/").pop();
+    if (fileName) {
+      await supabaseAdmin.storage.from("spotlight-photos").remove([fileName]);
+    }
+
+    const { error } = await supabaseAdmin
+      .from("spotlight_photos")
+      .delete()
+      .eq("photo_url", photoUrl)
+      .eq("player_name", playerName);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
