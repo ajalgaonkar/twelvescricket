@@ -31,12 +31,37 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         teamItems = document.querySelectorAll(".match-summary li");
       }
 
+      function extractTeamName(el: Element): string {
+        // Try .teamName first
+        const teamNameEl = el.querySelector(".teamName");
+        if (teamNameEl?.textContent?.trim()) return teamNameEl.textContent.trim();
+        // Try any anchor or strong text
+        const anchor = el.querySelector("a");
+        if (anchor?.textContent?.trim()) return anchor.textContent.trim();
+        // Try the first text node or span
+        const spans = el.querySelectorAll("span");
+        for (const span of spans) {
+          const text = span.textContent?.trim();
+          if (text && !text.match(/^\d/)) return text;
+        }
+        return "";
+      }
+
+      function extractScore(el: Element): string {
+        const spans = el.querySelectorAll("span");
+        for (const span of spans) {
+          const text = span.textContent?.trim() || "";
+          if (text.match(/^\d+/) && !span.classList.contains("teamName")) return text;
+        }
+        return "";
+      }
+
       if (teamItems.length >= 2) {
-        result.team1Name = teamItems[0].querySelector(".teamName")?.textContent?.trim() || "";
-        result.team1Score = teamItems[0].querySelector("span:not(.teamName)")?.textContent?.trim() || "";
+        result.team1Name = extractTeamName(teamItems[0]);
+        result.team1Score = extractScore(teamItems[0]);
         result.team1Overs = teamItems[0].querySelector("p")?.textContent?.trim() || "";
-        result.team2Name = teamItems[1].querySelector(".teamName")?.textContent?.trim() || "";
-        result.team2Score = teamItems[1].querySelector("span:not(.teamName)")?.textContent?.trim() || "";
+        result.team2Name = extractTeamName(teamItems[1]);
+        result.team2Score = extractScore(teamItems[1]);
         result.team2Overs = teamItems[1].querySelector("p")?.textContent?.trim() || "";
       }
 
@@ -111,11 +136,17 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       return result;
     });
 
-    // Accept match if we found team names (even if scores are empty — match may have just started)
+    // Accept match if we found at least one team name
     if (liveData.team1Name || liveData.team2Name) {
       return liveData;
     }
-    console.log(`    No team data found on page`);
+
+    // Debug: dump what we see on the page
+    const debugHtml = await page.evaluate(() => {
+      const ms = document.querySelector(".match-summary");
+      return ms ? ms.innerHTML.slice(0, 500) : "NO .match-summary FOUND";
+    });
+    console.log(`    No team data found. HTML: ${debugHtml.slice(0, 200)}`);
     return null;
   } catch (err) {
     console.log(`    Scorecard failed: ${(err as Error).message}`);
@@ -204,6 +235,21 @@ function determineTeamSlug(team1Name: string, team2Name: string): string | null 
   if (combined.includes("jet")) return "jets";
   if (combined.includes("rocket")) return "rockets";
   if (combined.includes("twelves")) return "unknown-twelves";
+
+  // If one team name is empty, check if the other is a scheduled opponent of Twelves
+  // (this handles CricClubs DOM extraction issues where team name span is missing)
+  const knownTwelvesOpponents = [
+    "punjab kings", "bellevue chargers", "oregon cc", "wsu cougars",
+    "bellingham daredevils", "spokane spartans", "bellevue smashers",
+    "southside hawks", "wcc f-16", "vs sports challengers",
+  ];
+  if (!team1Name || !team2Name) {
+    const known = (team1Name || team2Name).toLowerCase();
+    if (knownTwelvesOpponents.some((o) => known.includes(o))) {
+      return "unknown-twelves";
+    }
+  }
+
   return null;
 }
 
