@@ -118,13 +118,16 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
           let i = stride; // skip header row
 
           while (i + stride <= cellTexts.length) {
-            const name = cellTexts[i] || "";
-            const nameLower = name.toLowerCase();
+            const rawName = cellTexts[i] || "";
+            const nameLower = rawName.toLowerCase();
 
             // Stop at extras/total/end markers
             if (nameLower.includes("extras") || nameLower.includes("total") ||
                 nameLower.includes("did not bat") || nameLower === "bowling" ||
-                nameLower === "fall of wickets" || name === "O" || name === "W") break;
+                nameLower === "fall of wickets" || rawName === "O" || rawName === "W") break;
+
+            // CricClubs embeds "How Out" in the name cell after newlines — extract just the name
+            const name = rawName.split("\n")[0].trim().replace(/[*†]/g, "").trim();
 
             // For stride=7 (completed): [Name, HowOut, R, B, 4s, 6s, SR]
             // For stride=6 (live): [Name, R, B, 4s, 6s, SR]
@@ -165,15 +168,16 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
           while (i < cellTexts.length && cellTexts[i] === "") i++;
 
           while (i < cellTexts.length) {
-            const name = cellTexts[i] || "";
-            if (!name || name === "Bowling" || name === "O" || name === "Bowler") break;
+            const rawName = cellTexts[i] || "";
+            if (!rawName || rawName === "Bowling" || rawName === "O" || rawName === "Bowler") break;
 
             // Skip non-name entries (numbers, parentheticals, empty)
-            if (!isNaN(parseFloat(name)) || name.startsWith("(") || name.length <= 1) {
+            if (!isNaN(parseFloat(rawName)) || rawName.startsWith("(") || rawName.length <= 1) {
               i++;
               continue;
             }
 
+            const name = rawName.split("\n")[0].trim().replace(/[*†]/g, "").trim();
             const overs = cellTexts[i + 1] || "";
             const maidens = cellTexts[i + 2] || "";
             let runs: string, wickets: string, econ: string;
