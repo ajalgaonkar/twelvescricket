@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface BatterPerf {
   name: string;
@@ -10,6 +16,7 @@ interface BatterPerf {
   sixes: string;
   sr: string;
   matchContext?: string;
+  photoUrl?: string;
 }
 
 interface BowlerPerf {
@@ -20,6 +27,7 @@ interface BowlerPerf {
   wickets: string;
   econ: string;
   matchContext?: string;
+  photoUrl?: string;
 }
 
 interface MatchData {
@@ -32,14 +40,6 @@ interface MatchData {
     bowlingNow: BowlerPerf[];
   } | null;
 }
-
-const teamColors: Record<string, string> = {
-  copters: "#1e40af",
-  drones: "#059669",
-  jets: "#dc2626",
-  rockets: "#7c3aed",
-  "unknown-twelves": "#f59e0b",
-};
 
 export function PlayerSpotlight() {
   const [topBatters, setTopBatters] = useState<BatterPerf[]>([]);
@@ -69,9 +69,21 @@ export function PlayerSpotlight() {
 
   async function fetchPerformers() {
     try {
-      const res = await fetch("/api/live-matches");
-      const data = await res.json();
+      const [matchRes, playersRes] = await Promise.all([
+        fetch("/api/live-matches"),
+        supabase.from("players").select("name, photo_url"),
+      ]);
+      const data = await matchRes.json();
       const matches: MatchData[] = data.matches || [];
+
+      const photoMap = new Map<string, string>();
+      if (playersRes.data) {
+        for (const p of playersRes.data) {
+          if (p.photo_url) {
+            photoMap.set(p.name.toLowerCase(), p.photo_url);
+          }
+        }
+      }
 
       const batters: BatterPerf[] = [];
       const bowlers: BowlerPerf[] = [];
@@ -83,14 +95,22 @@ export function PlayerSpotlight() {
         for (const b of match.liveData.battingNow || []) {
           const runs = parseInt(b.runs) || 0;
           if (runs >= 20) {
-            batters.push({ ...b, matchContext: context });
+            batters.push({
+              ...b,
+              matchContext: context,
+              photoUrl: photoMap.get(b.name.toLowerCase()),
+            });
           }
         }
 
         for (const bw of match.liveData.bowlingNow || []) {
           const wickets = parseInt(bw.wickets) || 0;
           if (wickets >= 1) {
-            bowlers.push({ ...bw, matchContext: context });
+            bowlers.push({
+              ...bw,
+              matchContext: context,
+              photoUrl: photoMap.get(bw.name.toLowerCase()),
+            });
           }
         }
       }
@@ -185,11 +205,20 @@ function BatterCard({ player }: { player: BatterPerf }) {
 
   return (
     <div className="bg-[#1a1a1a] rounded-xl border border-[#333] p-6 text-center">
-      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 mx-auto flex items-center justify-center mb-3">
-        <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-        </svg>
-      </div>
+      {player.photoUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={player.photoUrl}
+          alt={player.name}
+          className="w-14 h-14 rounded-full mx-auto mb-3 object-cover border-2 border-yellow-400/50"
+        />
+      ) : (
+        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 mx-auto flex items-center justify-center mb-3">
+          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+        </div>
+      )}
       <h4 className="text-lg font-bold text-white">{player.name}</h4>
       {player.matchContext && (
         <p className="text-[11px] text-[#666] mt-1">{player.matchContext}</p>
@@ -221,11 +250,20 @@ function BowlerCard({ player }: { player: BowlerPerf }) {
 
   return (
     <div className="bg-[#1a1a1a] rounded-xl border border-[#333] p-6 text-center">
-      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 mx-auto flex items-center justify-center mb-3">
-        <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-        </svg>
-      </div>
+      {player.photoUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={player.photoUrl}
+          alt={player.name}
+          className="w-14 h-14 rounded-full mx-auto mb-3 object-cover border-2 border-blue-400/50"
+        />
+      ) : (
+        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 mx-auto flex items-center justify-center mb-3">
+          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+        </div>
+      )}
       <h4 className="text-lg font-bold text-white">{player.name}</h4>
       {player.matchContext && (
         <p className="text-[11px] text-[#666] mt-1">{player.matchContext}</p>
