@@ -137,11 +137,6 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       return result;
     });
 
-    // Log debug info
-    if (liveData._debug) console.log(`    Debug: ${liveData._debug}`);
-    if (liveData._t1Html) console.log(`    T1 HTML: ${liveData._t1Html}`);
-    if (liveData._t2Html) console.log(`    T2 HTML: ${liveData._t2Html}`);
-
     // Accept match if we found at least one team name
     if (liveData.team1Name || liveData.team2Name) {
       delete liveData._debug;
@@ -149,13 +144,6 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       delete liveData._t2Html;
       return liveData;
     }
-
-    // Debug: dump what we see on the page
-    const debugHtml = await page.evaluate(() => {
-      const ms = document.querySelector(".match-summary");
-      return ms ? ms.innerHTML.slice(0, 500) : "NO .match-summary FOUND";
-    });
-    console.log(`    No team data found. Summary HTML: ${debugHtml.slice(0, 300)}`);
     return null;
   } catch (err) {
     console.log(`    Scorecard failed: ${(err as Error).message}`);
@@ -212,7 +200,11 @@ async function main() {
       const url = `${BASE_URL}${link.href}`;
       console.log(`  Scraping match ${link.matchId}...`);
 
-      const liveData = await scrapeScorecard(page, url);
+      let liveData = await scrapeScorecard(page, url);
+      if (!liveData) {
+        console.log(`    Retrying ${link.matchId}...`);
+        liveData = await scrapeScorecard(page, url);
+      }
       if (liveData) {
         const teamSlug = determineTeamSlug(liveData.team1Name, liveData.team2Name);
         if (!teamSlug) {
