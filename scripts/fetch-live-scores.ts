@@ -83,54 +83,69 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         status.includes("draw") ||
         status.includes("no result");
 
+      // Extract ALL batting and bowling performances from the full scorecard
       result.battingNow = [];
+      result.bowlingNow = [];
+      result.allBatting = [];
+      result.allBowling = [];
+
       const tables = document.querySelectorAll("table");
       for (const table of tables) {
         const firstCell = table.querySelector("th, td");
-        if (firstCell?.textContent?.trim() === "Batter") {
+        const header = firstCell?.textContent?.trim() || "";
+
+        if (header === "Batter") {
           const rows = table.querySelectorAll("tr");
           for (const row of rows) {
             const cells = row.querySelectorAll("th, td");
             if (cells.length >= 6) {
               const name = cells[0]?.textContent?.trim();
               if (name && name !== "Batter") {
-                result.battingNow.push({
+                const entry = {
                   name,
                   runs: cells[1]?.textContent?.trim() || "0",
                   balls: cells[2]?.textContent?.trim() || "0",
                   fours: cells[3]?.textContent?.trim() || "0",
                   sixes: cells[4]?.textContent?.trim() || "0",
                   sr: cells[5]?.textContent?.trim() || "0",
-                });
+                };
+                result.allBatting.push(entry);
+                if (result.battingNow.length === 0) {
+                  result.battingNow.push(entry);
+                }
               }
             }
           }
-          break;
+          if (result.battingNow.length > 0 && result.battingNow.length === 1) {
+            result.battingNow = [];
+          }
         }
-      }
 
-      result.bowlingNow = [];
-      for (const table of tables) {
-        const firstCell = table.querySelector("th, td");
-        if (firstCell?.textContent?.trim() === "Bowler") {
+        if (header === "Bowler") {
           const rows = table.querySelectorAll("tr");
           for (const row of rows) {
             const cells = row.querySelectorAll("th, td");
             if (cells.length >= 6) {
               const name = cells[0]?.textContent?.trim();
               if (name && name !== "Bowler") {
-                result.bowlingNow.push({
+                const entry = {
                   name,
                   overs: cells[1]?.textContent?.trim() || "0",
                   maidens: cells[2]?.textContent?.trim() || "0",
                   runs: cells[3]?.textContent?.trim() || "0",
                   wickets: cells[4]?.textContent?.trim() || "0",
                   econ: cells[5]?.textContent?.trim() || "0",
-                });
+                };
+                result.allBowling.push(entry);
+                if (result.bowlingNow.length === 0) {
+                  result.bowlingNow.push(entry);
+                }
               }
             }
           }
-          break;
+          if (result.bowlingNow.length > 0 && result.bowlingNow.length === 1) {
+            result.bowlingNow = [];
+          }
         }
       }
 
@@ -267,8 +282,8 @@ async function saveToDb(matchId: string, teamSlug: string, liveData: any) {
       team2_overs: liveData.team2Overs || "",
       status_text: liveData.statusText || "",
       is_live: liveData.isLive || false,
-      batting_now: liveData.battingNow || [],
-      bowling_now: liveData.bowlingNow || [],
+      batting_now: liveData.allBatting || liveData.battingNow || [],
+      bowling_now: liveData.allBowling || liveData.bowlingNow || [],
       updated_at: new Date().toISOString(),
     },
     { onConflict: "match_id" }

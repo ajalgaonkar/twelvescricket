@@ -3,6 +3,7 @@ import { teams } from "@/lib/teams";
 import { getAllSchedules } from "@/lib/schedule";
 import { MatchCard } from "@/components/MatchCard";
 import { LiveMatchCenter } from "@/components/LiveMatchCenter";
+import { PlayerSpotlight } from "@/components/PlayerSpotlight";
 
 export default async function Home() {
   const schedules = await getAllSchedules(teams);
@@ -38,6 +39,22 @@ export default async function Home() {
             </p>
           </div>
           <LiveMatchCenter />
+        </div>
+      </section>
+
+      {/* Player Spotlight */}
+      <section className="bg-[#0a0a0a] py-14 px-6 border-b border-[#222]">
+        <div className="max-w-[600px] mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white font-[family-name:var(--font-heading)]">
+              Player Spotlight
+            </h2>
+            <hr className="w-[50px] border-t-2 border-[#888] mx-auto mt-4" />
+            <p className="text-[#888] mt-3 text-sm">
+              Top performers this week
+            </p>
+          </div>
+          <PlayerSpotlight />
         </div>
       </section>
 
