@@ -250,12 +250,14 @@ export async function GET(request: Request) {
       if (liveScores && liveScores.length > 0) {
         for (const ls of liveScores) {
           const statusLower = (ls.status_text || "").toLowerCase();
-          const isLive = ls.is_live;
           const isCompleted =
             statusLower.includes("won") ||
             statusLower.includes("tied") ||
             statusLower.includes("draw") ||
             statusLower.includes("no result");
+          // A match is live if: explicitly marked live, OR has score data and isn't completed
+          const hasScores = !!(ls.team1_score || ls.team2_score);
+          const isLive = ls.is_live || (hasScores && !isCompleted);
 
           results.push({
             matchId: ls.match_id,
