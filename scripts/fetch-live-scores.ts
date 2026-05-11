@@ -22,7 +22,7 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
     const liveData = await page.evaluate(() => {
       const result: any = {};
 
-      // Try multiple selectors for team items — CricClubs uses different classes
+      // Try multiple selectors for team items
       let teamItems = document.querySelectorAll(".match-summary ul.list-inline li.win");
       if (teamItems.length < 2) {
         teamItems = document.querySelectorAll(".match-summary ul.list-inline li");
@@ -31,38 +31,29 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         teamItems = document.querySelectorAll(".match-summary li");
       }
 
-      function extractTeamName(el: Element): string {
-        // Try .teamName first
-        const teamNameEl = el.querySelector(".teamName");
-        if (teamNameEl?.textContent?.trim()) return teamNameEl.textContent.trim();
-        // Try any anchor or strong text
-        const anchor = el.querySelector("a");
-        if (anchor?.textContent?.trim()) return anchor.textContent.trim();
-        // Try the first text node or span
-        const spans = el.querySelectorAll("span");
-        for (const span of spans) {
-          const text = span.textContent?.trim();
-          if (text && !text.match(/^\d/)) return text;
-        }
-        return "";
-      }
-
-      function extractScore(el: Element): string {
-        const spans = el.querySelectorAll("span");
-        for (const span of spans) {
-          const text = span.textContent?.trim() || "";
-          if (text.match(/^\d+/) && !span.classList.contains("teamName")) return text;
-        }
-        return "";
-      }
+      // Debug info
+      result._debug = `Found ${teamItems.length} team items`;
 
       if (teamItems.length >= 2) {
-        result.team1Name = extractTeamName(teamItems[0]);
-        result.team1Score = extractScore(teamItems[0]);
-        result.team1Overs = teamItems[0].querySelector("p")?.textContent?.trim() || "";
-        result.team2Name = extractTeamName(teamItems[1]);
-        result.team2Score = extractScore(teamItems[1]);
-        result.team2Overs = teamItems[1].querySelector("p")?.textContent?.trim() || "";
+        // Extract team name: try .teamName, then anchor, then first non-numeric span
+        const t1 = teamItems[0];
+        const t2 = teamItems[1];
+
+        result.team1Name = t1.querySelector(".teamName")?.textContent?.trim()
+          || t1.querySelector("a")?.textContent?.trim()
+          || "";
+        result.team1Score = t1.querySelector("span:not(.teamName)")?.textContent?.trim() || "";
+        result.team1Overs = t1.querySelector("p")?.textContent?.trim() || "";
+
+        result.team2Name = t2.querySelector(".teamName")?.textContent?.trim()
+          || t2.querySelector("a")?.textContent?.trim()
+          || "";
+        result.team2Score = t2.querySelector("span:not(.teamName)")?.textContent?.trim() || "";
+        result.team2Overs = t2.querySelector("p")?.textContent?.trim() || "";
+
+        // If team name still empty, try innerHTML for debugging
+        if (!result.team1Name) result._t1Html = t1.innerHTML.slice(0, 200);
+        if (!result.team2Name) result._t2Html = t2.innerHTML.slice(0, 200);
       }
 
       const h3s = document.querySelectorAll(".score-top .container h3");
@@ -136,8 +127,16 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       return result;
     });
 
+    // Log debug info
+    if (liveData._debug) console.log(`    Debug: ${liveData._debug}`);
+    if (liveData._t1Html) console.log(`    T1 HTML: ${liveData._t1Html}`);
+    if (liveData._t2Html) console.log(`    T2 HTML: ${liveData._t2Html}`);
+
     // Accept match if we found at least one team name
     if (liveData.team1Name || liveData.team2Name) {
+      delete liveData._debug;
+      delete liveData._t1Html;
+      delete liveData._t2Html;
       return liveData;
     }
 
@@ -146,7 +145,7 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       const ms = document.querySelector(".match-summary");
       return ms ? ms.innerHTML.slice(0, 500) : "NO .match-summary FOUND";
     });
-    console.log(`    No team data found. HTML: ${debugHtml.slice(0, 200)}`);
+    console.log(`    No team data found. Summary HTML: ${debugHtml.slice(0, 300)}`);
     return null;
   } catch (err) {
     console.log(`    Scorecard failed: ${(err as Error).message}`);
