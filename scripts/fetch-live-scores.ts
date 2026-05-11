@@ -22,20 +22,20 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
     const liveData = await page.evaluate(() => {
       const result: any = {};
 
-      // Find team items — filter to only li elements that contain team-related content
+      // Find team items — filter out "VS" separators and empty items
       const allLis = document.querySelectorAll(".match-summary ul.list-inline li");
       const teamLis: Element[] = [];
       for (const li of allLis) {
-        // A team li has either .teamName span, or a score span, or meaningful text
-        if (li.querySelector(".teamName") || li.querySelector("span") || li.textContent?.trim()) {
-          // Skip if it's just a "vs" separator or empty
-          const text = li.textContent?.trim() || "";
-          if (text === "vs" || text === "v" || text === "") continue;
+        const text = li.textContent?.trim() || "";
+        // Skip VS separators and empty items
+        if (text.toUpperCase() === "VS" || text.toUpperCase() === "V" || text === "") continue;
+        // Must have some team-related content (name or score)
+        if (li.querySelector(".teamName") || li.querySelector("span") || text.length > 2) {
           teamLis.push(li);
         }
       }
 
-      // Use li.win if available (most reliable), otherwise use filtered lis
+      // Use li.win if we have 2 (both teams batted), otherwise use filtered list
       let t1: Element | null = null;
       let t2: Element | null = null;
       const winItems = document.querySelectorAll(".match-summary ul.list-inline li.win");
@@ -43,7 +43,6 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         t1 = winItems[0];
         t2 = winItems[1];
       } else if (teamLis.length >= 2) {
-        // Take the first two that have meaningful content
         t1 = teamLis[0];
         t2 = teamLis[1];
       }
