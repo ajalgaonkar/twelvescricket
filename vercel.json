@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/live-matches?refresh=true",
-      "schedule": "*/10 * * * 6,0"
+      "schedule": "0 20 * * 6"
     },
     {
       "path": "/api/refresh-schedules",
