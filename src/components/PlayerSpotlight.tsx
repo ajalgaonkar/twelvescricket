@@ -55,6 +55,8 @@ export function PlayerSpotlight() {
 
   useEffect(() => {
     fetchPerformers();
+    const interval = setInterval(fetchPerformers, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const currentList = showBatting ? topBatters : topBowlers;

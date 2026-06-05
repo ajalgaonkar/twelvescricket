@@ -197,32 +197,31 @@ export async function GET(request: Request) {
       }
     }
 
-    // Store in live_scores table
-    if (liveResults.length > 0) {
-      // Clear old data
-      await supabaseAdmin.from("live_scores").delete().neq("match_id", "");
-
-      for (const lr of liveResults) {
-        await supabaseAdmin.from("live_scores").upsert(
-          {
-            match_id: lr.matchId,
-            team_slug: lr.teamSlug,
-            team1_name: lr.team1Name,
-            team1_score: lr.team1Score,
-            team1_overs: lr.team1Overs,
-            team2_name: lr.team2Name,
-            team2_score: lr.team2Score,
-            team2_overs: lr.team2Overs,
-            status_text: lr.statusText,
-            is_live: lr.isLive,
-            batting_now: lr.battingNow,
-            bowling_now: lr.bowlingNow,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "match_id" }
-        );
-      }
+    // Store in live_scores table (upsert only — never delete old results)
+    for (const lr of liveResults) {
+      await supabaseAdmin.from("live_scores").upsert(
+        {
+          match_id: lr.matchId,
+          team_slug: lr.teamSlug,
+          team1_name: lr.team1Name,
+          team1_score: lr.team1Score,
+          team1_overs: lr.team1Overs,
+          team2_name: lr.team2Name,
+          team2_score: lr.team2Score,
+          team2_overs: lr.team2Overs,
+          status_text: lr.statusText,
+          is_live: lr.isLive,
+          batting_now: lr.battingNow,
+          bowling_now: lr.bowlingNow,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "match_id" }
+      );
     }
+
+    // Remove entries older than 7 days to avoid stale data buildup
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabaseAdmin.from("live_scores").delete().lt("updated_at", weekAgo);
 
     return NextResponse.json({
       success: true,
