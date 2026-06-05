@@ -11,11 +11,74 @@ interface PlayerStatsProps {
 export function PlayerStats({ players, teamColor }: PlayerStatsProps) {
   const [view, setView] = useState<"batting" | "bowling">("batting");
 
-  const getBatting = (p: Player) =>
-    p.batting.find((b) => b.seriesType === "1 DAY") || null;
+  const getBatting = (p: Player) => {
+    if (p.batting.length === 0) return null;
+    const all = p.batting;
+    const matches = all.reduce((s, b) => s + b.matches, 0);
+    const innings = all.reduce((s, b) => s + b.innings, 0);
+    const notOuts = all.reduce((s, b) => s + b.notOuts, 0);
+    const runs = all.reduce((s, b) => s + b.runs, 0);
+    const balls = all.reduce((s, b) => s + b.balls, 0);
+    const dismissals = innings - notOuts;
+    const highScore = all.reduce((best, b) => {
+      const curr = parseInt(b.highScore) || 0;
+      const prev = parseInt(best) || 0;
+      return curr > prev ? b.highScore : best;
+    }, "0");
+    return {
+      seriesType: "All",
+      matches,
+      innings,
+      notOuts,
+      runs,
+      balls,
+      average: dismissals > 0 ? (runs / dismissals).toFixed(2) : "0",
+      strikeRate: balls > 0 ? ((runs / balls) * 100).toFixed(2) : "0",
+      highScore,
+      hundreds: all.reduce((s, b) => s + b.hundreds, 0),
+      fifties: all.reduce((s, b) => s + b.fifties, 0),
+      fours: all.reduce((s, b) => s + b.fours, 0),
+      sixes: all.reduce((s, b) => s + b.sixes, 0),
+    };
+  };
 
-  const getBowling = (p: Player) =>
-    p.bowling.find((b) => b.seriesType === "1 DAY") || null;
+  const getBowling = (p: Player) => {
+    if (p.bowling.length === 0) return null;
+    const all = p.bowling;
+    const matches = all.reduce((s, b) => s + b.matches, 0);
+    const innings = all.reduce((s, b) => s + b.innings, 0);
+    const totalBalls = all.reduce((s, b) => {
+      const parts = String(b.overs).split(".");
+      return s + (parseInt(parts[0]) || 0) * 6 + (parseInt(parts[1]) || 0);
+    }, 0);
+    const oversWhole = Math.floor(totalBalls / 6);
+    const oversPartial = totalBalls % 6;
+    const overs = oversPartial > 0 ? `${oversWhole}.${oversPartial}` : String(oversWhole);
+    const runs = all.reduce((s, b) => s + b.runs, 0);
+    const wickets = all.reduce((s, b) => s + b.wickets, 0);
+    const bestFigures = all.reduce((best, b) => {
+      if (best === "-") return b.bestFigures;
+      const [bw] = best.split("/").map(Number);
+      const [sw] = b.bestFigures.split("/").map(Number);
+      return (sw || 0) > (bw || 0) ? b.bestFigures : best;
+    }, "-");
+    return {
+      seriesType: "All",
+      matches,
+      innings,
+      overs,
+      runs,
+      wickets,
+      bestFigures,
+      maidens: all.reduce((s, b) => s + b.maidens, 0),
+      average: wickets > 0 ? (runs / wickets).toFixed(2) : "0",
+      economy: totalBalls > 0 ? (runs / (totalBalls / 6)).toFixed(2) : "0",
+      strikeRate: wickets > 0 ? (totalBalls / wickets).toFixed(2) : "0",
+      fourWickets: all.reduce((s, b) => s + b.fourWickets, 0),
+      fiveWickets: all.reduce((s, b) => s + b.fiveWickets, 0),
+      catches: all.reduce((s, b) => s + b.catches, 0),
+    };
+  };
 
   const sortedBatting = [...players]
     .filter((p) => { const b = getBatting(p); return b && b.runs > 0; })
