@@ -4,6 +4,7 @@ import { getTeamSchedule } from "@/lib/schedule";
 import { getTeamPlayers } from "@/lib/players";
 import { MatchCard } from "@/components/MatchCard";
 import { PlayerStats } from "@/components/PlayerStats";
+import { TeamGameCenter } from "@/components/TeamGameCenter";
 import Link from "next/link";
 
 export function generateStaticParams() {
@@ -79,6 +80,22 @@ export default async function TeamPage({
           >
             View on CricClubs →
           </a>
+        </div>
+      </section>
+
+      {/* Game Center */}
+      <section className="bg-[#0a0a0a] py-14 px-6 border-b border-[#222]">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white font-[family-name:var(--font-heading)]">
+              Game Center
+            </h2>
+            <hr className="w-[50px] border-t-2 border-[#888] mx-auto mt-4" />
+            <p className="text-[#888] mt-3 text-sm">
+              Results from the current season
+            </p>
+          </div>
+          <TeamGameCenter teamSlug={team.slug} teamColor={team.color} />
         </div>
       </section>
 

@@ -239,11 +239,6 @@ async function main() {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
   );
 
-  // Remove entries older than 7 days (keep weekend results through the week)
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  await supabase.from("live_scores").delete().lt("updated_at", weekAgo);
-  console.log("Removed entries older than 7 days.\n");
-
   const scrapedMatchIds = new Set<string>();
 
   // Check club-level fixtures page for recent scorecard links
@@ -304,6 +299,14 @@ async function main() {
   }
 
   await browser.close();
+
+  // Only clean up old entries if we successfully scraped new data
+  if (scrapedMatchIds.size > 0) {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from("live_scores").delete().lt("updated_at", weekAgo);
+    console.log("Removed entries older than 7 days.");
+  }
+
   console.log(`\nDone. Scraped ${scrapedMatchIds.size} matches total.`);
 }
 
@@ -356,6 +359,33 @@ async function saveToDb(matchId: string, teamSlug: string, liveData: any) {
     console.log(`    DB error: ${error.message}`);
   } else {
     console.log(`    Saved to DB.`);
+  }
+
+  // Also persist completed matches to match_results for permanent history
+  if (liveData.isCompleted && (liveData.team1Score || liveData.team2Score)) {
+    const { error: mrError } = await supabase.from("match_results").upsert(
+      {
+        match_id: matchId,
+        team_slug: teamSlug,
+        team1_name: liveData.team1Name,
+        team1_score: liveData.team1Score || "",
+        team1_overs: liveData.team1Overs || "",
+        team2_name: liveData.team2Name,
+        team2_score: liveData.team2Score || "",
+        team2_overs: liveData.team2Overs || "",
+        status_text: liveData.statusText || "",
+        batting_summary: liveData.allBatting || liveData.battingNow || [],
+        bowling_summary: liveData.allBowling || liveData.bowlingNow || [],
+        scorecard_url: `https://cricclubs.com/NWCL/viewScorecard.do?matchId=${matchId}&clubId=${CLUB_ID}`,
+        match_date: new Date().toISOString().split("T")[0],
+      },
+      { onConflict: "match_id,team_slug" }
+    );
+    if (mrError) {
+      console.log(`    match_results error: ${mrError.message}`);
+    } else {
+      console.log(`    Also saved to match_results.`);
+    }
   }
 }
 

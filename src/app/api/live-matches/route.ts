@@ -302,7 +302,49 @@ export async function GET(request: Request) {
       // live_scores table may not exist yet — fall through to upcoming
     }
 
-    // 2. Get upcoming matches from the matches table
+    // 2. If no live_scores data, try match_results for recent completed games
+    if (results.length === 0) {
+      try {
+        const { data: matchResults } = await supabase
+          .from("match_results")
+          .select("*")
+          .order("match_date", { ascending: false })
+          .limit(8);
+
+        if (matchResults && matchResults.length > 0) {
+          const cleanOvers = (ov: string) => (ov || "").split("/")[0].trim();
+          for (const mr of matchResults) {
+            results.push({
+              matchId: mr.match_id,
+              team1: mr.team1_name || "",
+              team2: mr.team2_name || "",
+              date: mr.match_date,
+              time: null,
+              matchType: null,
+              ground: null,
+              result: mr.status_text || null,
+              scorecardUrl: mr.scorecard_url || `https://cricclubs.com/NWCL/viewScorecard.do?matchId=${mr.match_id}&clubId=232`,
+              teamSlug: mr.team_slug,
+              teamColor: teamColors[mr.team_slug] || "#666",
+              status: "completed" as const,
+              liveData: {
+                team1Score: mr.team1_score || "",
+                team1Overs: cleanOvers(mr.team1_overs),
+                team2Score: mr.team2_score || "",
+                team2Overs: cleanOvers(mr.team2_overs),
+                statusText: mr.status_text || "",
+                battingNow: mr.batting_summary || [],
+                bowlingNow: mr.bowling_summary || [],
+              },
+            });
+          }
+        }
+      } catch {
+        // match_results table may not exist yet
+      }
+    }
+
+    // 3. Get upcoming matches from the matches table
     const { data: matches } = await supabase
       .from("matches")
       .select("*")
