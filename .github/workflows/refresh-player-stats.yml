@@ -1,0 +1,28 @@
+name: Refresh Player Stats
+
+on:
+  schedule:
+    # Every Sunday and Monday at 4 AM UTC (after weekend matches)
+    - cron: "0 4 * * 0,1"
+  workflow_dispatch:
+
+jobs:
+  refresh-stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Refresh player stats
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/refresh-player-stats.ts
