@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 
-export async function POST() {
+export async function POST(request: Request) {
   const token = process.env.GITHUB_PAT;
   if (!token) {
     return NextResponse.json({ error: "GitHub PAT not configured" }, { status: 500 });
   }
 
+  const url = new URL(request.url);
+  const mode = url.searchParams.get("mode") || "live";
+
+  const workflow = mode === "backfill"
+    ? "backfill-match-results.yml"
+    : "live-scores.yml";
+
   try {
     const res = await fetch(
-      "https://api.github.com/repos/ajalgaonkar/twelvescricket/actions/workflows/live-scores.yml/dispatches",
+      `https://api.github.com/repos/ajalgaonkar/twelvescricket/actions/workflows/${workflow}/dispatches`,
       {
         method: "POST",
         headers: {
@@ -21,7 +28,10 @@ export async function POST() {
     );
 
     if (res.status === 204) {
-      return NextResponse.json({ success: true, message: "Refresh triggered. Scores will update in ~2 minutes." });
+      const message = mode === "backfill"
+        ? "Backfill triggered. Results will update in ~5 minutes."
+        : "Refresh triggered. Scores will update in ~2 minutes.";
+      return NextResponse.json({ success: true, message });
     }
 
     const body = await res.text();

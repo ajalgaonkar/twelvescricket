@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer";
 import * as fs from "fs";
 import * as path from "path";
+import { createClient } from "@supabase/supabase-js";
 
 interface Match {
   matchId: string;
@@ -182,6 +183,48 @@ async function main() {
   console.log(
     `Total matches: ${Object.values(allSchedules).reduce((sum, s) => sum + s.matches.length, 0)}`
   );
+
+  // Also upsert to Supabase matches table if env vars are set
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && serviceRoleKey) {
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    let upserted = 0;
+
+    for (const team of teams) {
+      const schedule = allSchedules[team.slug];
+      if (!schedule || schedule.matches.length === 0) continue;
+
+      const rows = schedule.matches.map((m) => ({
+        team_slug: team.slug,
+        match_id: m.matchId,
+        date: m.date || null,
+        time: m.time || null,
+        match_type: m.matchType || null,
+        series: m.series || null,
+        division: m.division || null,
+        team1: m.team1,
+        team2: m.team2,
+        ground: m.ground || null,
+        result: m.result || null,
+        scorecard_url: m.scorecardUrl || null,
+      }));
+
+      const { error } = await supabase
+        .from("matches")
+        .upsert(rows, { onConflict: "team_slug,match_id" });
+
+      if (error) {
+        console.log(`  Supabase upsert error for ${team.slug}: ${error.message}`);
+      } else {
+        upserted += rows.length;
+      }
+    }
+
+    console.log(`Upserted ${upserted} matches to Supabase.`);
+  } else {
+    console.log("Skipping Supabase upsert (env vars not set).");
+  }
 }
 
 main().catch(console.error);

@@ -67,7 +67,25 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
       }
 
       const h3s = document.querySelectorAll(".score-top .container h3");
-      result.statusText = h3s[0]?.textContent?.trim().replace(/DLS.*$/, "").trim() || "";
+      // Find the actual match status h3 (not the tournament/series name)
+      let statusText = "";
+      for (let i = 0; i < h3s.length; i++) {
+        const text = h3s[i]?.textContent?.trim().replace(/DLS.*$/, "").trim() || "";
+        const lower = text.toLowerCase();
+        if (lower.includes("won") || lower.includes("tied") || lower.includes("draw") ||
+            lower.includes("no result") || lower.includes("runs needed") ||
+            lower.includes("wickets remaining") || lower.includes("overs remaining") ||
+            lower.includes("yet to bat") || lower.includes("innings break") ||
+            lower.includes("in progress") || lower.includes("1st innings") ||
+            lower.includes("2nd innings")) {
+          statusText = text;
+          break;
+        }
+      }
+      if (!statusText) {
+        statusText = h3s[h3s.length - 1]?.textContent?.trim().replace(/DLS.*$/, "").trim() || "";
+      }
+      result.statusText = statusText;
 
       const status = result.statusText.toLowerCase();
       result.isLive =
@@ -76,7 +94,9 @@ async function scrapeScorecard(page: any, url: string): Promise<any | null> {
         status.includes("overs remaining") ||
         status.includes("yet to bat") ||
         status.includes("innings break") ||
-        status.includes("in progress");
+        status.includes("in progress") ||
+        status.includes("1st innings") ||
+        status.includes("2nd innings");
       result.isCompleted =
         status.includes("won") ||
         status.includes("tied") ||
@@ -298,7 +318,111 @@ async function main() {
     console.log(`  Fixtures page failed: ${(err as Error).message}`);
   }
 
+  // Also check individual team schedule pages for recent scorecards we missed
+  const teams = [
+    { slug: "copters", teamId: 1455, leagueId: 160, clubId: 232 },
+    { slug: "drones", teamId: 1470, leagueId: 161, clubId: 232 },
+    { slug: "jets", teamId: 1480, leagueId: 162, clubId: 232 },
+    { slug: "rockets", teamId: 1494, leagueId: 163, clubId: 232 },
+  ];
+
+  for (const team of teams) {
+    console.log(`\nChecking team schedule page: ${team.slug}...`);
+    try {
+      const scheduleUrl = `${BASE_URL}/NWCL/teamSchedule.do?teamId=${team.teamId}&league=${team.leagueId}&clubId=${team.clubId}`;
+      await page.goto(scheduleUrl, { waitUntil: "networkidle2", timeout: 25000 });
+
+      const teamScorecardLinks = await page.evaluate(() => {
+        const links: { matchId: string; href: string }[] = [];
+        const anchors = document.querySelectorAll('a[href*="viewScorecard"]');
+        for (const a of anchors) {
+          const href = a.getAttribute("href") || "";
+          const matchIdMatch = href.match(/matchId=(\d+)/);
+          if (matchIdMatch) {
+            links.push({ matchId: matchIdMatch[1], href });
+          }
+        }
+        const seen = new Set<string>();
+        return links.filter((l) => {
+          if (seen.has(l.matchId)) return false;
+          seen.add(l.matchId);
+          return true;
+        }).sort((a, b) => Number(b.matchId) - Number(a.matchId)).slice(0, 3);
+      });
+
+      for (const link of teamScorecardLinks) {
+        if (scrapedMatchIds.has(link.matchId)) continue;
+
+        const url = `${BASE_URL}${link.href}`;
+        console.log(`  Scraping match ${link.matchId} from ${team.slug} schedule...`);
+
+        const liveData = await scrapeScorecard(page, url);
+        if (liveData) {
+          const teamSlug = determineTeamSlug(liveData.team1Name, liveData.team2Name) || team.slug;
+          const statusLabel = liveData.isLive ? "LIVE" : liveData.isCompleted ? "COMPLETED" : "IN PROGRESS";
+          console.log(`    ${liveData.team1Name} ${liveData.team1Score || "—"} vs ${liveData.team2Name} ${liveData.team2Score || "—"}`);
+          console.log(`    Status: ${statusLabel} - ${liveData.statusText || "(no status)"}`);
+
+          await saveToDb(link.matchId, teamSlug, liveData);
+          scrapedMatchIds.add(link.matchId);
+        }
+
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    } catch (err) {
+      console.log(`  Team schedule page failed for ${team.slug}: ${(err as Error).message}`);
+    }
+  }
+
   await browser.close();
+
+  // Persist any completed matches from live_scores to match_results
+  try {
+    const { data: allLive } = await supabase.from("live_scores").select("*");
+    if (allLive) {
+      for (const ls of allLive) {
+        const statusLower = (ls.status_text || "").toLowerCase();
+        const isCompleted =
+          statusLower.includes("won") ||
+          statusLower.includes("tied") ||
+          statusLower.includes("draw") ||
+          statusLower.includes("no result");
+
+        const t1Score = ls.team1_score || "";
+        const t2Score = ls.team2_score || "";
+        const t1Runs = parseInt(t1Score) || 0;
+        const t2Runs = parseInt(t2Score) || 0;
+        const bothBatted = !!(t1Score && t2Score);
+        const chaseComplete = bothBatted && (t2Runs > t1Runs || t2Score.includes("/10"));
+
+        if ((isCompleted || chaseComplete) && (t1Score || t2Score)) {
+          const { error: mrError } = await supabase.from("match_results").upsert(
+            {
+              match_id: ls.match_id,
+              team_slug: ls.team_slug,
+              team1_name: ls.team1_name,
+              team1_score: ls.team1_score || "",
+              team1_overs: ls.team1_overs || "",
+              team2_name: ls.team2_name,
+              team2_score: ls.team2_score || "",
+              team2_overs: ls.team2_overs || "",
+              status_text: ls.status_text || "",
+              batting_summary: ls.batting_now || [],
+              bowling_summary: ls.bowling_now || [],
+              scorecard_url: `https://cricclubs.com/NWCL/viewScorecard.do?matchId=${ls.match_id}&clubId=${CLUB_ID}`,
+              match_date: new Date(ls.updated_at).toISOString().split("T")[0],
+            },
+            { onConflict: "match_id,team_slug" }
+          );
+          if (!mrError) {
+            console.log(`Persisted completed match ${ls.match_id} (${ls.team1_name} vs ${ls.team2_name}) to match_results.`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.log(`Failed to persist completed matches: ${(err as Error).message}`);
+  }
 
   // Only clean up old entries if we successfully scraped new data
   if (scrapedMatchIds.size > 0) {

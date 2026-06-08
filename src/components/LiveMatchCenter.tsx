@@ -59,14 +59,14 @@ export function LiveMatchCenter() {
     };
   }, [fetchMatches]);
 
-  async function triggerRefresh() {
+  async function triggerRefresh(mode: "live" | "backfill" = "live") {
     setRefreshing(true);
-    setRefreshMsg("Scraping live scores...");
+    setRefreshMsg(mode === "backfill" ? "Backfilling results..." : "Scraping live scores...");
     try {
-      const res = await fetch("/api/trigger-refresh", { method: "POST" });
+      const res = await fetch(`/api/trigger-refresh?mode=${mode}`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        setRefreshMsg("Scraper running — polling for updates...");
+        setRefreshMsg(mode === "backfill" ? "Backfill running — results in ~5 min..." : "Scraper running — polling for updates...");
         let attempts = 0;
         pollRef.current = setInterval(async () => {
           attempts++;
@@ -119,13 +119,29 @@ export function LiveMatchCenter() {
 
   return (
     <div className="space-y-6">
-      {/* Refresh Button */}
+      {/* Refresh Buttons */}
       <div className="flex items-center justify-end gap-3">
         {refreshMsg && (
           <span className="text-xs text-yellow-400">{refreshMsg}</span>
         )}
         <button
-          onClick={triggerRefresh}
+          onClick={() => triggerRefresh("backfill")}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 bg-[#1a1a1a] border border-[#333] rounded-lg hover:border-[#555] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg
+            className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+          </svg>
+          {refreshing ? "Triggering..." : "Update Results"}
+        </button>
+        <button
+          onClick={() => triggerRefresh("live")}
           disabled={refreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 bg-[#1a1a1a] border border-[#333] rounded-lg hover:border-[#555] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >

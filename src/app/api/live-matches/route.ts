@@ -65,14 +65,35 @@ async function scrapeScorecard(url: string): Promise<Omit<LiveMatchData, "matchI
 
     if (!team1Score && !team2Score) return null;
 
-    const statusH3 = $(".score-top .container h3").first();
-    const statusText = statusH3.text().trim().replace(/DLS.*$/, "").trim();
+    // Find the actual match status h3 (not the tournament/series name)
+    let statusText = "";
+    $(".score-top .container h3").each((_, el) => {
+      if (statusText) return;
+      const text = $(el).text().trim().replace(/DLS.*$/, "").trim();
+      const lower = text.toLowerCase();
+      if (lower.includes("won") || lower.includes("tied") || lower.includes("draw") ||
+          lower.includes("no result") || lower.includes("runs needed") ||
+          lower.includes("wickets remaining") || lower.includes("overs remaining") ||
+          lower.includes("yet to bat") || lower.includes("innings break") ||
+          lower.includes("in progress") || lower.includes("1st innings") ||
+          lower.includes("2nd innings")) {
+        statusText = text;
+      }
+    });
+    if (!statusText) {
+      statusText = $(".score-top .container h3").last().text().trim().replace(/DLS.*$/, "").trim();
+    }
     const statusLower = statusText.toLowerCase();
 
     const isLive =
       statusLower.includes("runs needed") ||
       statusLower.includes("wickets remaining") ||
-      statusLower.includes("overs remaining");
+      statusLower.includes("overs remaining") ||
+      statusLower.includes("yet to bat") ||
+      statusLower.includes("innings break") ||
+      statusLower.includes("in progress") ||
+      statusLower.includes("1st innings") ||
+      statusLower.includes("2nd innings");
     const isCompleted =
       statusLower.includes("won") ||
       statusLower.includes("tied") ||
@@ -238,8 +259,9 @@ export async function GET(request: Request) {
   // Default: serve live + upcoming match data
   try {
     const results: any[] = [];
+    const seenMatchIds = new Set<string>();
 
-    // 1. Try to read live scores from DB
+    // 1. Read live scores from DB (includes currently live AND recently scraped matches)
     try {
       const { data: liveScores } = await supabase
         .from("live_scores")
@@ -273,6 +295,7 @@ export async function GET(request: Request) {
           // Truly live: explicitly marked OR has scores and not completed
           const isLive = ls.is_live || (hasScores && !isCompleted);
 
+          seenMatchIds.add(ls.match_id);
           results.push({
             matchId: ls.match_id,
             team1: ls.team1_name || "",
@@ -281,7 +304,7 @@ export async function GET(request: Request) {
             time: null,
             matchType: null,
             ground: null,
-            result: isCompleted ? ls.status_text : null,
+            result: isCompleted && isCompletedByStatus ? ls.status_text : null,
             scorecardUrl: `https://cricclubs.com/NWCL/viewScorecard.do?matchId=${ls.match_id}&clubId=232`,
             teamSlug: ls.team_slug,
             teamColor: teamColors[ls.team_slug] || "#666",
@@ -299,49 +322,49 @@ export async function GET(request: Request) {
         }
       }
     } catch {
-      // live_scores table may not exist yet — fall through to upcoming
+      // live_scores table may not exist yet — fall through
     }
 
-    // 2. If no live_scores data, try match_results for recent completed games
-    if (results.length === 0) {
-      try {
-        const { data: matchResults } = await supabase
-          .from("match_results")
-          .select("*")
-          .order("match_date", { ascending: false })
-          .limit(8);
+    // 2. Always merge recent match_results (not just as a fallback)
+    try {
+      const { data: matchResults } = await supabase
+        .from("match_results")
+        .select("*")
+        .order("match_date", { ascending: false })
+        .limit(8);
 
-        if (matchResults && matchResults.length > 0) {
-          const cleanOvers = (ov: string) => (ov || "").split("/")[0].trim();
-          for (const mr of matchResults) {
-            results.push({
-              matchId: mr.match_id,
-              team1: mr.team1_name || "",
-              team2: mr.team2_name || "",
-              date: mr.match_date,
-              time: null,
-              matchType: null,
-              ground: null,
-              result: mr.status_text || null,
-              scorecardUrl: mr.scorecard_url || `https://cricclubs.com/NWCL/viewScorecard.do?matchId=${mr.match_id}&clubId=232`,
-              teamSlug: mr.team_slug,
-              teamColor: teamColors[mr.team_slug] || "#666",
-              status: "completed" as const,
-              liveData: {
-                team1Score: mr.team1_score || "",
-                team1Overs: cleanOvers(mr.team1_overs),
-                team2Score: mr.team2_score || "",
-                team2Overs: cleanOvers(mr.team2_overs),
-                statusText: mr.status_text || "",
-                battingNow: mr.batting_summary || [],
-                bowlingNow: mr.bowling_summary || [],
-              },
-            });
-          }
+      if (matchResults && matchResults.length > 0) {
+        const cleanOvers = (ov: string) => (ov || "").split("/")[0].trim();
+        for (const mr of matchResults) {
+          if (seenMatchIds.has(mr.match_id)) continue;
+          seenMatchIds.add(mr.match_id);
+          results.push({
+            matchId: mr.match_id,
+            team1: mr.team1_name || "",
+            team2: mr.team2_name || "",
+            date: mr.match_date,
+            time: null,
+            matchType: null,
+            ground: null,
+            result: mr.status_text || null,
+            scorecardUrl: mr.scorecard_url || `https://cricclubs.com/NWCL/viewScorecard.do?matchId=${mr.match_id}&clubId=232`,
+            teamSlug: mr.team_slug,
+            teamColor: teamColors[mr.team_slug] || "#666",
+            status: "completed" as const,
+            liveData: {
+              team1Score: mr.team1_score || "",
+              team1Overs: cleanOvers(mr.team1_overs),
+              team2Score: mr.team2_score || "",
+              team2Overs: cleanOvers(mr.team2_overs),
+              statusText: mr.status_text || "",
+              battingNow: mr.batting_summary || [],
+              bowlingNow: mr.bowling_summary || [],
+            },
+          });
         }
-      } catch {
-        // match_results table may not exist yet
       }
+    } catch {
+      // match_results table may not exist yet
     }
 
     // 3. Get upcoming matches from the matches table
