@@ -5,6 +5,8 @@ import { MatchCard } from "@/components/MatchCard";
 import { LiveMatchCenter } from "@/components/LiveMatchCenter";
 import { PlayerSpotlight } from "@/components/PlayerSpotlight";
 
+export const revalidate = 300;
+
 export default async function Home() {
   const schedules = await getAllSchedules(teams);
 

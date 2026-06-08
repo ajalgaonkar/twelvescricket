@@ -2,6 +2,8 @@ import { getAllPlayers } from "@/lib/players";
 import { AllPlayersStats } from "@/components/AllPlayersStats";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "All Players | Twelves Cricket Club",
   description: "Stats for all players across all Twelves Cricket Club teams.",

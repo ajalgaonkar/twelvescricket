@@ -3,6 +3,8 @@ import { getAllSchedules } from "@/lib/schedule";
 import { MatchCard } from "@/components/MatchCard";
 import Link from "next/link";
 
+export const revalidate = 300;
+
 export const metadata = {
   title: "Match Schedule | Twelves Cricket Club",
   description:

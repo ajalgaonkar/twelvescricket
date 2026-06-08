@@ -7,6 +7,8 @@ import { PlayerStats } from "@/components/PlayerStats";
 import { TeamGameCenter } from "@/components/TeamGameCenter";
 import Link from "next/link";
 
+export const revalidate = 300;
+
 export function generateStaticParams() {
   return teams.map((team) => ({ slug: team.slug }));
 }
