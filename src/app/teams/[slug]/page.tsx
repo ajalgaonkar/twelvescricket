@@ -113,7 +113,7 @@ export default async function TeamPage({
               {players.length} player{players.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <PlayerStats players={players} teamColor={team.color} />
+          <PlayerStats players={players} teamColor={team.color} teamSlug={team.slug} />
         </div>
       </section>
 
